@@ -1,0 +1,17 @@
+---
+name: build and publish
+on:
+  - push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@master
+      - name: Build and push Docker container
+        uses: docker/build-push-action@v1
+        with:
+          username: "${{ secrets.DOCKER_USERNAME }}"
+          password: "${{ secrets.DOCKER_PASSWORD }}"
+          repository: vxlabs/nest
+          tags: "latest,${{ github.sha }}"
