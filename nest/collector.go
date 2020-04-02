@@ -17,28 +17,32 @@ type Collector interface {
 }
 
 type mqttCollector struct {
-	client MQTT.Client
+	opts *MQTT.ClientOptions
 }
 
 func (m *mqttCollector) Run(ctx context.Context, ch chan *api.Record) error {
-	token := m.client.Subscribe("#", 2, func(client MQTT.Client, msg MQTT.Message) {
-		if msg.Retained() {
-			return
-		}
-		L(ctx).Debug("mqtt message collected",
-			zap.String("mqtt_topic", msg.Topic()), zap.String("mqtt_payload", string(msg.Payload())))
-		ch <- &api.Record{
-			Timestamp: time.Now().UnixNano(),
-			Payload:   msg.Payload(),
-			Topic:     []byte(msg.Topic()),
-		}
-	})
-	if token.Wait() && token.Error() != nil {
+	m.opts.OnConnect = func(c MQTT.Client) {
+		L(ctx).Info("susbcribing to # pattern")
+		c.Subscribe("#", 2, func(client MQTT.Client, msg MQTT.Message) {
+			if msg.Retained() {
+				return
+			}
+			L(ctx).Debug("mqtt message collected",
+				zap.String("mqtt_topic", msg.Topic()), zap.String("mqtt_payload", string(msg.Payload())))
+			ch <- &api.Record{
+				Timestamp: time.Now().UnixNano(),
+				Payload:   msg.Payload(),
+				Topic:     []byte(msg.Topic()),
+			}
+		})
+	}
+	c := MQTT.NewClient(m.opts)
+	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		return token.Error()
 	}
 	select {
 	case <-ctx.Done():
-		m.client.Disconnect(500)
+		c.Disconnect(500)
 		return nil
 	}
 }
@@ -64,11 +68,9 @@ func MQTTCollector(broker, username, password string) (Collector, error) {
 			ServerName: host,
 		}
 	}
-	c := MQTT.NewClient(opts)
-	if token := c.Connect(); token.Wait() && token.Error() != nil {
-		return nil, token.Error()
-	}
+	opts.AutoReconnect = true
+
 	return &mqttCollector{
-		client: c,
+		opts: opts,
 	}, nil
 }
