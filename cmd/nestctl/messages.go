@@ -52,9 +52,9 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					l.Error("failed to get records", zap.Error(err))
 				} else {
 					for _, elt := range out {
-						fmt.Println(elt)
+						fmt.Printf("%s %s %s\n", time.Unix(0, elt.Timestamp).Format(time.Stamp), string(elt.Topic), string(elt.Payload))
 					}
-					fmt.Printf("topic %q: %d messages\n", topic, len(out))
+					fmt.Printf("\nPattern %q: %d messages\n\n", topic, len(out))
 				}
 			}
 		},
