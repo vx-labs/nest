@@ -40,6 +40,9 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
 					Topic: []byte(topic),
 				})
+				if err != nil {
+					l.Fatal("failed to start stream", zap.Error(err))
+				}
 				out := []*api.Record{}
 				for {
 					record, err := stream.Recv()
@@ -49,7 +52,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					out = append(out, record.Records...)
 				}
 				if err != io.EOF && err != nil {
-					l.Error("failed to get records", zap.Error(err))
+					l.Error("failed to stream records", zap.Error(err))
 				} else {
 					for _, elt := range out {
 						fmt.Printf("%s %s %s\n", time.Unix(0, elt.Timestamp).Format(time.Stamp), string(elt.Topic), string(elt.Payload))

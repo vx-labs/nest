@@ -24,7 +24,7 @@ require (
 	github.com/prometheus/client_golang v1.5.1
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/viper v1.4.0
-	github.com/stretchr/testify v1.5.1 // indirect
+	github.com/stretchr/testify v1.5.1
 	github.com/vx-labs/mqtt-protocol v4.3.4+incompatible // indirect
 	go.etcd.io/etcd v0.0.0-20200319002442-e784ba73c229
 	go.uber.org/zap v1.14.1

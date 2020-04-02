@@ -91,6 +91,31 @@ func (s *messageLog) Append(timestamp int64, b []*api.Record) error {
 	return tx.CommitAt(ts, nil)
 }
 
+func cut(t []byte) ([]byte, string) {
+	end := bytes.IndexByte(t, '/')
+	if end < 0 {
+		return nil, string(t)
+	}
+	return t[end+1:], string(t[:end])
+}
+
+func match(pattern []byte, topic []byte) bool {
+	var patternToken string
+	var topicToken string
+	pattern, patternToken = cut(pattern)
+	if patternToken == "#" {
+		return true
+	}
+	topic, topicToken = cut(topic)
+	if len(topic) == 0 || len(pattern) == 0 {
+		return len(topic) == 0 && len(pattern) == 0 && (topicToken == patternToken || patternToken == "+")
+	}
+	if topicToken == patternToken || patternToken == "+" {
+		return match(pattern, topic)
+	}
+	return false
+}
+
 func (s *messageLog) GetRecords(ctx context.Context, topic []byte, fromTimestamp int64, f RecordConsumer) error {
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
 	stream.ChooseKey = func(item *badger.Item) bool {
@@ -127,12 +152,11 @@ func (s *messageLog) GetRecords(ctx context.Context, topic []byte, fromTimestamp
 			if err != nil {
 				return err
 			}
-			if !(len(topic) == 1 && topic[0] == '#') && !bytes.Equal(topic, record.Topic) { //TODO: pattern match
-				continue
-			}
-			err = f(record.Topic, record.Timestamp, record.Payload)
-			if err != nil {
-				return err
+			if match(topic, record.Topic) {
+				err = f(record.Topic, record.Timestamp, record.Payload)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		return nil
