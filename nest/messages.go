@@ -24,7 +24,7 @@ type RecordConsumer func(topic []byte, ts int64, payload []byte) error
 type MessageLog interface {
 	io.Closer
 	Append(timestamp int64, b []*api.Record) error
-	GetRecords(ctx context.Context, topic []byte, fromTimestamp int64, f RecordConsumer) error
+	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
 	GC()
 }
 
@@ -116,7 +116,7 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-func (s *messageLog) GetRecords(ctx context.Context, topic []byte, fromTimestamp int64, f RecordConsumer) error {
+func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error {
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
 	stream.ChooseKey = func(item *badger.Item) bool {
 		return fromTimestamp < bytesToInt64(item.Key())
@@ -152,7 +152,14 @@ func (s *messageLog) GetRecords(ctx context.Context, topic []byte, fromTimestamp
 			if err != nil {
 				return err
 			}
-			if match(topic, record.Topic) {
+			matched := true
+			for _, pattern := range patterns {
+				if !match(pattern, record.Topic) {
+					matched = false
+					break
+				}
+			}
+			if matched {
 				err = f(record.Topic, record.Timestamp, record.Payload)
 				if err != nil {
 					return err

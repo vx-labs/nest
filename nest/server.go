@@ -27,7 +27,7 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRecordsServer) error {
-	return s.state.GetRecords(stream.Context(), in.Topic, in.FromTimestamp, func(topic []byte, ts int64, payload []byte) error {
+	return s.state.GetRecords(stream.Context(), in.Patterns, in.FromTimestamp, func(topic []byte, ts int64, payload []byte) error {
 		return stream.Send(&api.GetRecordsResponse{
 			Records: []*api.Record{
 				&api.Record{

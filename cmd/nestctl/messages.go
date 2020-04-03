@@ -36,9 +36,13 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			conn, l := mustDial(ctx, cmd, config)
+			patterns := make([][]byte, len(args))
+			for idx := range patterns {
+				patterns[idx] = []byte(args[idx])
+			}
 			for _, topic := range args {
 				stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
-					Topic: []byte(topic),
+					Patterns: patterns,
 				})
 				if err != nil {
 					l.Fatal("failed to start stream", zap.Error(err))

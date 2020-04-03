@@ -47,7 +47,7 @@ message PutRecordsRequest{
 message PutRecordsResponse {}
 message GetRecordsRequest{
   int64 FromTimestamp = 1;
-  bytes Topic = 2;
+  repeated bytes Patterns = 2;
 }
 message GetRecordsResponse {
   repeated Record Records = 1;
