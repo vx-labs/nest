@@ -152,10 +152,10 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 			if err != nil {
 				return err
 			}
-			matched := true
+			matched := false
 			for _, pattern := range patterns {
 				if !match(pattern, record.Topic) {
-					matched = false
+					matched = true
 					break
 				}
 			}
