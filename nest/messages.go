@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -23,13 +24,16 @@ var (
 type RecordConsumer func(topic []byte, ts int64, payload []byte) error
 type MessageLog interface {
 	io.Closer
-	Append(timestamp int64, b []*api.Record) error
+	Dump(w io.Writer) error
+	Load(w io.Reader) error
+	PutRecords(timestamp int64, b []*api.Record) error
 	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
 	GC()
 }
 
 type messageLog struct {
-	db *badger.DB
+	restorelock sync.RWMutex
+	db          *badger.DB
 }
 
 type compatLogger struct {
@@ -73,7 +77,9 @@ func int64ToBytes(u int64) []byte {
 func bytesToInt64(b []byte) int64 {
 	return int64(binary.BigEndian.Uint64(b))
 }
-func (s *messageLog) Append(timestamp int64, b []*api.Record) error {
+func (s *messageLog) PutRecords(timestamp int64, b []*api.Record) error {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
 	ts := uint64(timestamp)
 	tx := s.db.NewTransactionAt(ts, true)
 	defer tx.Discard()
@@ -116,7 +122,19 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
+func (s *messageLog) Dump(sink io.Writer) error {
+	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
+	_, err := stream.Backup(sink, 0)
+	return err
+}
+func (s *messageLog) Load(source io.Reader) error {
+	s.restorelock.Lock()
+	defer s.restorelock.Unlock()
+	return s.db.Load(source, 15)
+}
 func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
 	stream.ChooseKey = func(item *badger.Item) bool {
 		return fromTimestamp < bytesToInt64(item.Key())
@@ -152,11 +170,13 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 			if err != nil {
 				return err
 			}
-			matched := false
-			for _, pattern := range patterns {
-				if !match(pattern, record.Topic) {
-					matched = true
-					break
+			matched := len(patterns) == 0
+			if !matched {
+				for _, pattern := range patterns {
+					if match(pattern, record.Topic) {
+						matched = true
+						break
+					}
 				}
 			}
 			if matched {

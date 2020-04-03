@@ -138,7 +138,6 @@ func main() {
 			cancelCh := make(chan struct{})
 			commandsCh := make(chan raft.Command)
 			recordsCh := make(chan *api.Record, 20)
-			state := nest.NewState(messageLog)
 			if config.GetString("rpc-tls-certificate-file") == "" || config.GetString("rpc-tls-private-key-file") == "" {
 				nest.L(ctx).Warn("TLS certificate or private key not provided. GRPC transport security will use a self-signed generated certificate.")
 			}
@@ -205,12 +204,12 @@ func main() {
 			raftConfig := raft.Config{
 				NodeID:      id,
 				DataDir:     config.GetString("data-dir"),
-				GetSnapshot: state.MarshalBinary,
+				GetSnapshot: func() ([]byte, error) { return nil, nil },
 			}
 			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
 			raftNode.Serve(server)
-			stateMachine := fsm.NewFSM(id, state, commandsCh)
-			messagesServer := nest.NewServer(stateMachine, state)
+			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
+			messagesServer := nest.NewServer(stateMachine, messageLog)
 			messagesServer.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("cluster listener stopped")
@@ -289,17 +288,6 @@ func main() {
 				}()
 				raftNode.Run(ctx, peers, join)
 			})
-			snapshotter := <-raftNode.Snapshotter()
-
-			snapshot, err := snapshotter.Load()
-			if err != nil {
-				nest.L(ctx).Warn("failed to get state snapshot", zap.Error(err))
-			} else {
-				err := state.Load(snapshot.Data)
-				if err != nil {
-					nest.L(ctx).Warn("failed to load state snapshot", zap.Error(err))
-				}
-			}
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("records publisher stopped")
 				for {
@@ -339,15 +327,6 @@ func main() {
 						return
 					case event := <-raftNode.Commits():
 						if event == nil {
-							snapshot, err := snapshotter.Load()
-							if err != nil {
-								nest.L(ctx).Fatal("failed to get snapshot from storage", zap.Error(err))
-							}
-							err = state.Load(snapshot.Data)
-							if err != nil {
-								nest.L(ctx).Fatal("failed to get snapshot from storage", zap.Error(err))
-							}
-							nest.L(ctx).Info("loaded snapshot into state")
 						} else {
 							stateMachine.Apply(event)
 						}

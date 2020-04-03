@@ -52,8 +52,25 @@ message GetRecordsRequest{
 message GetRecordsResponse {
   repeated Record Records = 1;
 }
-
+message DumpRequest {
+  string DestinationURL = 1;
+}
+message DumpResponse {
+  int64 StartedAt = 1;
+  int64 ProgressBytes = 2;
+  int64 TotalBytes = 3;
+}
+message LoadRequest {
+  string SourceURL = 1;
+}
+message LoadResponse {
+  int64 StartedAt = 1;
+  int64 ProgressBytes = 2;
+  int64 TotalBytes = 3;
+}
 service Messages {
+  rpc Dump(DumpRequest) returns (stream DumpResponse) {}
+  rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
 }

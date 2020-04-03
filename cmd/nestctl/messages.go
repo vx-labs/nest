@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -66,6 +67,60 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 		},
 	})
+	backupCommand := &cobra.Command{
+		Use:  "backup",
+		Args: cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			stream, err := api.NewMessagesClient(conn).Dump(ctx, &api.DumpRequest{
+				DestinationURL: config.GetString("destination-url"),
+			})
+			if err != nil {
+				l.Fatal("failed to start backup", zap.Error(err))
+			}
+			for {
+				msg, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					l.Fatal("failed to run backup", zap.Error(err))
+				}
+				log.Printf("Backup in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
+			}
+			log.Printf("Backup done")
+		},
+	}
+	backupCommand.Flags().StringP("destination-url", "t", "", "Backup destination URL (file URLs are resolved server-side.)")
+	backupCommand.MarkFlagRequired("destination-url")
+	mqtt.AddCommand(backupCommand)
+	restoreCommand := &cobra.Command{
+		Use:  "restore",
+		Args: cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			stream, err := api.NewMessagesClient(conn).Load(ctx, &api.LoadRequest{
+				SourceURL: config.GetString("source-url"),
+			})
+			if err != nil {
+				l.Fatal("failed to start restore", zap.Error(err))
+			}
+			for {
+				msg, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					l.Fatal("failed to run restore", zap.Error(err))
+				}
+				log.Printf("Restore in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
+			}
+			log.Printf("Restore done")
+		},
+	}
+	restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
+	restoreCommand.MarkFlagRequired("source-url")
+	mqtt.AddCommand(restoreCommand)
 	mqtt.AddCommand(&cobra.Command{
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {
