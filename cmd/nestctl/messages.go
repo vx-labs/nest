@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,23 +17,37 @@ import (
 	"go.uber.org/zap"
 )
 
+const recordTemplate = `{{ .Timestamp }} {{ .Topic }} {{ .Payload }}`
+
+type record struct {
+	Timestamp int64
+	Topic     string
+	Payload   string
+}
+
 func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
-	mqtt := &cobra.Command{
+	cmd := &cobra.Command{
 		Use: "messages",
 	}
-	mqtt.AddCommand(&cobra.Command{
+	cmd.AddCommand(&cobra.Command{
 		Use: "put",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
 			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{})
+			_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
+				Records: []*api.Record{
+					&api.Record{Timestamp: time.Now().UnixNano(),
+						Payload: []byte("test"),
+					},
+				},
+			})
 			if err != nil {
 				l.Fatal("failed to put record", zap.Error(err))
 			}
 			cancel()
 		},
 	})
-	mqtt.AddCommand(&cobra.Command{
+	get := (&cobra.Command{
 		Use:  "get",
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -41,32 +56,34 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			for idx := range patterns {
 				patterns[idx] = []byte(args[idx])
 			}
-			for _, topic := range args {
-				stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
-					Patterns: patterns,
-				})
+			stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
+				Patterns: patterns,
+			})
+			if err != nil {
+				l.Fatal("failed to start stream", zap.Error(err))
+			}
+			out := []*api.Record{}
+			for {
+				record, err := stream.Recv()
 				if err != nil {
-					l.Fatal("failed to start stream", zap.Error(err))
+					break
 				}
-				out := []*api.Record{}
-				for {
-					record, err := stream.Recv()
-					if err != nil {
-						break
-					}
-					out = append(out, record.Records...)
+				out = append(out, record.Records...)
+			}
+			if err != io.EOF && err != nil {
+				l.Error("failed to stream records", zap.Error(err))
+			} else {
+				tpl := ParseTemplate(config.GetString("format"))
+				for _, elt := range out {
+					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
+					tpl.Execute(cmd.OutOrStdout(), r)
 				}
-				if err != io.EOF && err != nil {
-					l.Error("failed to stream records", zap.Error(err))
-				} else {
-					for _, elt := range out {
-						fmt.Printf("%s %s %s\n", time.Unix(0, elt.Timestamp).Format(time.Stamp), string(elt.Topic), string(elt.Payload))
-					}
-					fmt.Printf("\nPattern %q: %d messages\n\n", topic, len(out))
-				}
+				fmt.Fprintf(cmd.ErrOrStderr(), "\nPattern %q: %d messages\n\n", strings.Join(args, ", "), len(out))
 			}
 		},
 	})
+	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
+	cmd.AddCommand(get)
 	backupCommand := &cobra.Command{
 		Use:  "backup",
 		Args: cobra.ExactArgs(0),
@@ -93,7 +110,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	}
 	backupCommand.Flags().StringP("destination-url", "t", "", "Backup destination URL (file URLs are resolved server-side.)")
 	backupCommand.MarkFlagRequired("destination-url")
-	mqtt.AddCommand(backupCommand)
+	cmd.AddCommand(backupCommand)
 	restoreCommand := &cobra.Command{
 		Use:  "restore",
 		Args: cobra.ExactArgs(0),
@@ -120,8 +137,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	}
 	restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
 	restoreCommand.MarkFlagRequired("source-url")
-	mqtt.AddCommand(restoreCommand)
-	mqtt.AddCommand(&cobra.Command{
+	cmd.AddCommand(restoreCommand)
+	cmd.AddCommand(&cobra.Command{
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
@@ -163,5 +180,5 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			fmt.Printf("Rate is %d msg/s\n", rate)
 		},
 	})
-	return mqtt
+	return cmd
 }
