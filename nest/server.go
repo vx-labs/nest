@@ -113,7 +113,7 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRecordsServer) error {
-	return s.state.GetRecords(stream.Context(), in.Patterns, in.FromTimestamp, func(topic []byte, ts int64, payload []byte) error {
+	_, err := s.state.GetRecords(stream.Context(), in.Patterns, in.FromTimestamp, func(topic []byte, ts int64, payload []byte) error {
 		return stream.Send(&api.GetRecordsResponse{
 			Records: []*api.Record{
 				&api.Record{
@@ -124,6 +124,21 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRe
 			},
 		})
 	})
+	return err
+}
+func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_StreamRecordsServer) error {
+	return s.state.Consume(stream.Context(), in.Patterns, in.FromTimestamp,
+		func(topic []byte, ts int64, payload []byte) error {
+			return stream.Send(&api.GetRecordsResponse{
+				Records: []*api.Record{
+					&api.Record{
+						Topic:     topic,
+						Timestamp: ts,
+						Payload:   payload,
+					},
+				},
+			})
+		})
 }
 
 func (s *server) Serve(grpcServer *grpc.Server) {

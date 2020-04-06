@@ -18,7 +18,7 @@ job "nest" {
       env           = false
     }
 
-    count = 1
+    count = 3
 
     restart {
       attempts = 10
@@ -111,12 +111,11 @@ EOH
         args = [
           "--data-dir", "$${NOMAD_TASK_DIR}",
           "--mtls",
-          "--raft-bootstrap-expect", "1",
-          # "--consul-join",
-          # "--consul-service-name", "nest",
-          # "--consul-service-tag", "gossip",
+          "--raft-bootstrap-expect", "3",
+          "--consul-join",
+          "--consul-service-name", "nest",
+          "--consul-service-tag", "gossip",
           "--metrics-port", "8089",
-          "--mqtt-collector-broker-url", "tcp://lb-1.instance.discovery.fr-par.vx-labs.net:1883",
           "--raft-advertized-address", "$${NOMAD_IP_rpc}", "--raft-advertized-port", "$${NOMAD_HOST_PORT_rpc}",
           "--serf-advertized-address", "$${NOMAD_IP_gossip}", "--serf-advertized-port", "$${NOMAD_HOST_PORT_gossip}",
         ]
@@ -153,6 +152,14 @@ EOH
           "traefik.tcp.routers.nest.service=nest",
           "traefik.tcp.routers.nest.tls",
           "traefik.tcp.routers.nest.tls.passthrough=true",
+        ]
+      }
+      service {
+        name = "nest"
+        port = "gossip"
+        tags = [
+          "gossip",
+          "${service_version}",
         ]
       }
     }

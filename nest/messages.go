@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"log"
 	"path"
 	"sync"
 	"time"
@@ -27,7 +28,8 @@ type MessageLog interface {
 	Dump(w io.Writer) error
 	Load(w io.Reader) error
 	PutRecords(timestamp int64, b []*api.Record) error
-	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
+	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error)
+	Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
 	GC()
 }
 
@@ -132,7 +134,7 @@ func (s *messageLog) Load(source io.Reader) error {
 	defer s.restorelock.Unlock()
 	return s.db.Load(source, 15)
 }
-func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error {
+func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error) {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
@@ -163,6 +165,7 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 		}
 		return list, nil
 	}
+	var lastRecord int64 = fromTimestamp
 	stream.Send = func(list *pb.KVList) error {
 		for _, kv := range list.Kv {
 			record := &api.Record{}
@@ -185,8 +188,36 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 					return err
 				}
 			}
+			lastRecord = record.Timestamp
 		}
 		return nil
 	}
-	return stream.Orchestrate(ctx)
+	err := stream.Orchestrate(ctx)
+	return lastRecord, err
+}
+func (s *messageLog) Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error {
+
+	notifications := make(chan struct{}, 1)
+
+	notifications <- struct{}{}
+	defer close(notifications)
+
+	go func() {
+		var lastSeen int64 = fromTimestamp
+		var err error
+		for range notifications {
+			lastSeen, err = s.GetRecords(ctx, patterns, lastSeen, f)
+			if err != nil {
+				log.Print(err) // TODO: use logger
+			}
+		}
+	}()
+
+	return s.db.Subscribe(ctx, func(list *pb.KVList) error {
+		select {
+		case notifications <- struct{}{}:
+		default:
+		}
+		return nil
+	}, nil)
 }

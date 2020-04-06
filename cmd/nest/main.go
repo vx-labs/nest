@@ -380,6 +380,10 @@ func main() {
 			}
 			healthServer.Shutdown()
 			nest.L(ctx).Debug("health server stopped")
+			go func() {
+				<-time.After(1 * time.Second)
+				server.Stop()
+			}()
 			server.GracefulStop()
 			nest.L(ctx).Debug("rpc server stopped")
 			clusterListener.Close()
