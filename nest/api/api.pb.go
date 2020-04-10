@@ -7,7 +7,6 @@ import (
 	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	raftpb "go.etcd.io/etcd/raft/raftpb"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -25,342 +24,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type Payload struct {
-	Data                 []byte   `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Payload) Reset()         { *m = Payload{} }
-func (m *Payload) String() string { return proto.CompactTextString(m) }
-func (*Payload) ProtoMessage()    {}
-func (*Payload) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
-}
-
-func (m *Payload) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Payload.Unmarshal(m, b)
-}
-func (m *Payload) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Payload.Marshal(b, m, deterministic)
-}
-func (m *Payload) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Payload.Merge(m, src)
-}
-func (m *Payload) XXX_Size() int {
-	return xxx_messageInfo_Payload.Size(m)
-}
-func (m *Payload) XXX_DiscardUnknown() {
-	xxx_messageInfo_Payload.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Payload proto.InternalMessageInfo
-
-func (m *Payload) GetData() []byte {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
-type RaftContext struct {
-	ID                   uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Address              string   `protobuf:"bytes,2,opt,name=Address,proto3" json:"Address,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *RaftContext) Reset()         { *m = RaftContext{} }
-func (m *RaftContext) String() string { return proto.CompactTextString(m) }
-func (*RaftContext) ProtoMessage()    {}
-func (*RaftContext) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
-}
-
-func (m *RaftContext) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_RaftContext.Unmarshal(m, b)
-}
-func (m *RaftContext) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_RaftContext.Marshal(b, m, deterministic)
-}
-func (m *RaftContext) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RaftContext.Merge(m, src)
-}
-func (m *RaftContext) XXX_Size() int {
-	return xxx_messageInfo_RaftContext.Size(m)
-}
-func (m *RaftContext) XXX_DiscardUnknown() {
-	xxx_messageInfo_RaftContext.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_RaftContext proto.InternalMessageInfo
-
-func (m *RaftContext) GetID() uint64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *RaftContext) GetAddress() string {
-	if m != nil {
-		return m.Address
-	}
-	return ""
-}
-
-type JoinClusterResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *JoinClusterResponse) Reset()         { *m = JoinClusterResponse{} }
-func (m *JoinClusterResponse) String() string { return proto.CompactTextString(m) }
-func (*JoinClusterResponse) ProtoMessage()    {}
-func (*JoinClusterResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{2}
-}
-
-func (m *JoinClusterResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_JoinClusterResponse.Unmarshal(m, b)
-}
-func (m *JoinClusterResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_JoinClusterResponse.Marshal(b, m, deterministic)
-}
-func (m *JoinClusterResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JoinClusterResponse.Merge(m, src)
-}
-func (m *JoinClusterResponse) XXX_Size() int {
-	return xxx_messageInfo_JoinClusterResponse.Size(m)
-}
-func (m *JoinClusterResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_JoinClusterResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_JoinClusterResponse proto.InternalMessageInfo
-
-type GetMembersRequest struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *GetMembersRequest) Reset()         { *m = GetMembersRequest{} }
-func (m *GetMembersRequest) String() string { return proto.CompactTextString(m) }
-func (*GetMembersRequest) ProtoMessage()    {}
-func (*GetMembersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{3}
-}
-
-func (m *GetMembersRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetMembersRequest.Unmarshal(m, b)
-}
-func (m *GetMembersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetMembersRequest.Marshal(b, m, deterministic)
-}
-func (m *GetMembersRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetMembersRequest.Merge(m, src)
-}
-func (m *GetMembersRequest) XXX_Size() int {
-	return xxx_messageInfo_GetMembersRequest.Size(m)
-}
-func (m *GetMembersRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetMembersRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetMembersRequest proto.InternalMessageInfo
-
-type Member struct {
-	ID                   uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Address              string   `protobuf:"bytes,2,opt,name=Address,proto3" json:"Address,omitempty"`
-	IsLeader             bool     `protobuf:"varint,3,opt,name=IsLeader,proto3" json:"IsLeader,omitempty"`
-	IsAlive              bool     `protobuf:"varint,4,opt,name=IsAlive,proto3" json:"IsAlive,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Member) Reset()         { *m = Member{} }
-func (m *Member) String() string { return proto.CompactTextString(m) }
-func (*Member) ProtoMessage()    {}
-func (*Member) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{4}
-}
-
-func (m *Member) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Member.Unmarshal(m, b)
-}
-func (m *Member) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Member.Marshal(b, m, deterministic)
-}
-func (m *Member) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Member.Merge(m, src)
-}
-func (m *Member) XXX_Size() int {
-	return xxx_messageInfo_Member.Size(m)
-}
-func (m *Member) XXX_DiscardUnknown() {
-	xxx_messageInfo_Member.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Member proto.InternalMessageInfo
-
-func (m *Member) GetID() uint64 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *Member) GetAddress() string {
-	if m != nil {
-		return m.Address
-	}
-	return ""
-}
-
-func (m *Member) GetIsLeader() bool {
-	if m != nil {
-		return m.IsLeader
-	}
-	return false
-}
-
-func (m *Member) GetIsAlive() bool {
-	if m != nil {
-		return m.IsAlive
-	}
-	return false
-}
-
-type GetMembersResponse struct {
-	Members              []*Member `protobuf:"bytes,1,rep,name=Members,proto3" json:"Members,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
-}
-
-func (m *GetMembersResponse) Reset()         { *m = GetMembersResponse{} }
-func (m *GetMembersResponse) String() string { return proto.CompactTextString(m) }
-func (*GetMembersResponse) ProtoMessage()    {}
-func (*GetMembersResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{5}
-}
-
-func (m *GetMembersResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetMembersResponse.Unmarshal(m, b)
-}
-func (m *GetMembersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetMembersResponse.Marshal(b, m, deterministic)
-}
-func (m *GetMembersResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetMembersResponse.Merge(m, src)
-}
-func (m *GetMembersResponse) XXX_Size() int {
-	return xxx_messageInfo_GetMembersResponse.Size(m)
-}
-func (m *GetMembersResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetMembersResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetMembersResponse proto.InternalMessageInfo
-
-func (m *GetMembersResponse) GetMembers() []*Member {
-	if m != nil {
-		return m.Members
-	}
-	return nil
-}
-
-type GetStatusRequest struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *GetStatusRequest) Reset()         { *m = GetStatusRequest{} }
-func (m *GetStatusRequest) String() string { return proto.CompactTextString(m) }
-func (*GetStatusRequest) ProtoMessage()    {}
-func (*GetStatusRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{6}
-}
-
-func (m *GetStatusRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetStatusRequest.Unmarshal(m, b)
-}
-func (m *GetStatusRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetStatusRequest.Marshal(b, m, deterministic)
-}
-func (m *GetStatusRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetStatusRequest.Merge(m, src)
-}
-func (m *GetStatusRequest) XXX_Size() int {
-	return xxx_messageInfo_GetStatusRequest.Size(m)
-}
-func (m *GetStatusRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetStatusRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetStatusRequest proto.InternalMessageInfo
-
-type GetStatusResponse struct {
-	IsLeader             bool     `protobuf:"varint,1,opt,name=IsLeader,proto3" json:"IsLeader,omitempty"`
-	HasBeenBootstrapped  bool     `protobuf:"varint,2,opt,name=HasBeenBootstrapped,proto3" json:"HasBeenBootstrapped,omitempty"`
-	IsInCluster          bool     `protobuf:"varint,3,opt,name=IsInCluster,proto3" json:"IsInCluster,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *GetStatusResponse) Reset()         { *m = GetStatusResponse{} }
-func (m *GetStatusResponse) String() string { return proto.CompactTextString(m) }
-func (*GetStatusResponse) ProtoMessage()    {}
-func (*GetStatusResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{7}
-}
-
-func (m *GetStatusResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetStatusResponse.Unmarshal(m, b)
-}
-func (m *GetStatusResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetStatusResponse.Marshal(b, m, deterministic)
-}
-func (m *GetStatusResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetStatusResponse.Merge(m, src)
-}
-func (m *GetStatusResponse) XXX_Size() int {
-	return xxx_messageInfo_GetStatusResponse.Size(m)
-}
-func (m *GetStatusResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetStatusResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetStatusResponse proto.InternalMessageInfo
-
-func (m *GetStatusResponse) GetIsLeader() bool {
-	if m != nil {
-		return m.IsLeader
-	}
-	return false
-}
-
-func (m *GetStatusResponse) GetHasBeenBootstrapped() bool {
-	if m != nil {
-		return m.HasBeenBootstrapped
-	}
-	return false
-}
-
-func (m *GetStatusResponse) GetIsInCluster() bool {
-	if m != nil {
-		return m.IsInCluster
-	}
-	return false
-}
-
 type Record struct {
 	Timestamp            int64    `protobuf:"varint,1,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
 	Topic                []byte   `protobuf:"bytes,2,opt,name=Topic,proto3" json:"Topic,omitempty"`
@@ -374,7 +37,7 @@ func (m *Record) Reset()         { *m = Record{} }
 func (m *Record) String() string { return proto.CompactTextString(m) }
 func (*Record) ProtoMessage()    {}
 func (*Record) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{8}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{0}
 }
 
 func (m *Record) XXX_Unmarshal(b []byte) error {
@@ -427,7 +90,7 @@ func (m *PutRecordsRequest) Reset()         { *m = PutRecordsRequest{} }
 func (m *PutRecordsRequest) String() string { return proto.CompactTextString(m) }
 func (*PutRecordsRequest) ProtoMessage()    {}
 func (*PutRecordsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{9}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{1}
 }
 
 func (m *PutRecordsRequest) XXX_Unmarshal(b []byte) error {
@@ -465,7 +128,7 @@ func (m *PutRecordsResponse) Reset()         { *m = PutRecordsResponse{} }
 func (m *PutRecordsResponse) String() string { return proto.CompactTextString(m) }
 func (*PutRecordsResponse) ProtoMessage()    {}
 func (*PutRecordsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{10}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{2}
 }
 
 func (m *PutRecordsResponse) XXX_Unmarshal(b []byte) error {
@@ -498,7 +161,7 @@ func (m *GetRecordsRequest) Reset()         { *m = GetRecordsRequest{} }
 func (m *GetRecordsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetRecordsRequest) ProtoMessage()    {}
 func (*GetRecordsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{11}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{3}
 }
 
 func (m *GetRecordsRequest) XXX_Unmarshal(b []byte) error {
@@ -544,7 +207,7 @@ func (m *GetRecordsResponse) Reset()         { *m = GetRecordsResponse{} }
 func (m *GetRecordsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetRecordsResponse) ProtoMessage()    {}
 func (*GetRecordsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{12}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{4}
 }
 
 func (m *GetRecordsResponse) XXX_Unmarshal(b []byte) error {
@@ -583,7 +246,7 @@ func (m *DumpRequest) Reset()         { *m = DumpRequest{} }
 func (m *DumpRequest) String() string { return proto.CompactTextString(m) }
 func (*DumpRequest) ProtoMessage()    {}
 func (*DumpRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{13}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{5}
 }
 
 func (m *DumpRequest) XXX_Unmarshal(b []byte) error {
@@ -624,7 +287,7 @@ func (m *DumpResponse) Reset()         { *m = DumpResponse{} }
 func (m *DumpResponse) String() string { return proto.CompactTextString(m) }
 func (*DumpResponse) ProtoMessage()    {}
 func (*DumpResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{14}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{6}
 }
 
 func (m *DumpResponse) XXX_Unmarshal(b []byte) error {
@@ -677,7 +340,7 @@ func (m *LoadRequest) Reset()         { *m = LoadRequest{} }
 func (m *LoadRequest) String() string { return proto.CompactTextString(m) }
 func (*LoadRequest) ProtoMessage()    {}
 func (*LoadRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{15}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{7}
 }
 
 func (m *LoadRequest) XXX_Unmarshal(b []byte) error {
@@ -718,7 +381,7 @@ func (m *LoadResponse) Reset()         { *m = LoadResponse{} }
 func (m *LoadResponse) String() string { return proto.CompactTextString(m) }
 func (*LoadResponse) ProtoMessage()    {}
 func (*LoadResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{16}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{8}
 }
 
 func (m *LoadResponse) XXX_Unmarshal(b []byte) error {
@@ -770,7 +433,7 @@ func (m *ShutdownRequest) Reset()         { *m = ShutdownRequest{} }
 func (m *ShutdownRequest) String() string { return proto.CompactTextString(m) }
 func (*ShutdownRequest) ProtoMessage()    {}
 func (*ShutdownRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{17}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{9}
 }
 
 func (m *ShutdownRequest) XXX_Unmarshal(b []byte) error {
@@ -801,7 +464,7 @@ func (m *ShutdownResponse) Reset()         { *m = ShutdownResponse{} }
 func (m *ShutdownResponse) String() string { return proto.CompactTextString(m) }
 func (*ShutdownResponse) ProtoMessage()    {}
 func (*ShutdownResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{18}
+	return fileDescriptor_00212fb1f9d3bf1c, []int{10}
 }
 
 func (m *ShutdownResponse) XXX_Unmarshal(b []byte) error {
@@ -823,14 +486,6 @@ func (m *ShutdownResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_ShutdownResponse proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterType((*Payload)(nil), "api.Payload")
-	proto.RegisterType((*RaftContext)(nil), "api.RaftContext")
-	proto.RegisterType((*JoinClusterResponse)(nil), "api.JoinClusterResponse")
-	proto.RegisterType((*GetMembersRequest)(nil), "api.GetMembersRequest")
-	proto.RegisterType((*Member)(nil), "api.Member")
-	proto.RegisterType((*GetMembersResponse)(nil), "api.GetMembersResponse")
-	proto.RegisterType((*GetStatusRequest)(nil), "api.GetStatusRequest")
-	proto.RegisterType((*GetStatusResponse)(nil), "api.GetStatusResponse")
 	proto.RegisterType((*Record)(nil), "api.Record")
 	proto.RegisterType((*PutRecordsRequest)(nil), "api.PutRecordsRequest")
 	proto.RegisterType((*PutRecordsResponse)(nil), "api.PutRecordsResponse")
@@ -847,53 +502,35 @@ func init() {
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 737 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0x5b, 0x4f, 0x1b, 0x47,
-	0x14, 0x66, 0x6d, 0x17, 0xec, 0x63, 0x73, 0xf1, 0x70, 0xa9, 0xb5, 0xa2, 0x95, 0xb5, 0x6a, 0x91,
-	0xa5, 0x4a, 0x86, 0xba, 0xaa, 0xaa, 0x96, 0x4a, 0xc8, 0x60, 0x85, 0x38, 0x82, 0xc8, 0x1a, 0x43,
-	0xde, 0x07, 0xef, 0x01, 0x56, 0xb2, 0x77, 0x36, 0x33, 0xe3, 0x24, 0x3c, 0xe7, 0x3f, 0xe5, 0x9f,
-	0xe5, 0x3d, 0x9a, 0xd9, 0x19, 0xef, 0x7a, 0xcd, 0x03, 0x52, 0xa4, 0xbc, 0xb0, 0x9c, 0x6f, 0xce,
-	0xe5, 0x3b, 0x57, 0x43, 0x8d, 0x25, 0x51, 0x37, 0x11, 0x5c, 0x71, 0x52, 0x66, 0x49, 0xe4, 0x1f,
-	0x3d, 0xf0, 0x2e, 0xaa, 0x49, 0xd8, 0x8d, 0xf8, 0xb1, 0xfe, 0x1e, 0x0b, 0x76, 0xaf, 0xcc, 0x9f,
-	0xe4, 0xce, 0x7c, 0x52, 0xe5, 0xe0, 0x17, 0xd8, 0x18, 0xb1, 0xa7, 0x29, 0x67, 0x21, 0x21, 0x50,
-	0x19, 0x30, 0xc5, 0x5a, 0x5e, 0xdb, 0xeb, 0x34, 0xa8, 0xf9, 0x3f, 0xf8, 0x07, 0xea, 0x94, 0xdd,
-	0xab, 0x0b, 0x1e, 0x2b, 0xfc, 0xa4, 0xc8, 0x16, 0x94, 0x86, 0x03, 0xa3, 0x50, 0xa1, 0xa5, 0xe1,
-	0x80, 0xb4, 0x60, 0xa3, 0x1f, 0x86, 0x02, 0xa5, 0x6c, 0x95, 0xda, 0x5e, 0xa7, 0x46, 0x9d, 0x18,
-	0xec, 0xc3, 0xee, 0x1b, 0x1e, 0xc5, 0x17, 0xd3, 0xb9, 0x54, 0x28, 0x28, 0xca, 0x84, 0xc7, 0x12,
-	0x83, 0x5d, 0x68, 0x5e, 0xa2, 0xba, 0xc6, 0xd9, 0x1d, 0x0a, 0x49, 0xf1, 0xfd, 0x1c, 0xa5, 0x0a,
-	0x1e, 0x61, 0x3d, 0x45, 0x5e, 0xee, 0x9f, 0xf8, 0x50, 0x1d, 0xca, 0x2b, 0x64, 0x21, 0x8a, 0x56,
-	0xb9, 0xed, 0x75, 0xaa, 0x74, 0x21, 0x6b, 0xab, 0xa1, 0xec, 0x4f, 0xa3, 0x0f, 0xd8, 0xaa, 0x98,
-	0x27, 0x27, 0x06, 0xa7, 0x40, 0xf2, 0xe1, 0x53, 0x52, 0xe4, 0x77, 0xd8, 0xb0, 0x50, 0xcb, 0x6b,
-	0x97, 0x3b, 0xf5, 0x5e, 0xbd, 0xab, 0xab, 0x99, 0x62, 0xd4, 0xbd, 0x05, 0x04, 0x76, 0x2e, 0x51,
-	0x8d, 0x15, 0x53, 0xf3, 0x05, 0xf5, 0xcf, 0x9e, 0x49, 0xc8, 0x81, 0xd6, 0x61, 0x9e, 0x9c, 0x57,
-	0x20, 0x77, 0x02, 0xbb, 0xaf, 0x99, 0x3c, 0x47, 0x8c, 0xcf, 0x39, 0x57, 0x52, 0x09, 0x96, 0x24,
-	0x18, 0x9a, 0xf4, 0xaa, 0xf4, 0xb9, 0x27, 0xd2, 0x86, 0xfa, 0x50, 0x0e, 0x5d, 0x29, 0x6d, 0xb6,
-	0x79, 0x28, 0x78, 0x07, 0xeb, 0x14, 0x27, 0x5c, 0x84, 0xe4, 0x10, 0x6a, 0x37, 0xd1, 0x0c, 0xa5,
-	0x62, 0xb3, 0xc4, 0x84, 0x2e, 0xd3, 0x0c, 0x20, 0x7b, 0xf0, 0xd3, 0x0d, 0x4f, 0xa2, 0x89, 0x89,
-	0xd6, 0xa0, 0xa9, 0xa0, 0xcb, 0x65, 0x47, 0xc0, 0xf8, 0x6e, 0x50, 0x27, 0x06, 0xff, 0x41, 0x73,
-	0x34, 0x57, 0xa9, 0x6b, 0x97, 0xb2, 0xae, 0x96, 0x45, 0x96, 0xaa, 0x95, 0x62, 0xd4, 0xbd, 0x05,
-	0x7b, 0x40, 0xf2, 0xb6, 0xb6, 0xff, 0xb7, 0xa6, 0x5c, 0x05, 0x8f, 0xbf, 0xc1, 0xe6, 0x2b, 0xc1,
-	0x67, 0x45, 0xe2, 0xcb, 0xa0, 0x2e, 0xea, 0x88, 0x29, 0x85, 0x22, 0xd6, 0xc3, 0x50, 0xee, 0x34,
-	0xe8, 0x42, 0xb6, 0x7d, 0x2d, 0x04, 0x7b, 0x29, 0xd3, 0xbf, 0xa1, 0x3e, 0x98, 0xcf, 0x12, 0xc7,
-	0xe6, 0x08, 0xb6, 0x06, 0x28, 0x55, 0x14, 0x33, 0x15, 0xf1, 0xf8, 0x96, 0x5e, 0x19, 0x3a, 0x35,
-	0x5a, 0x40, 0x03, 0x01, 0x8d, 0xd4, 0xcc, 0x46, 0x3b, 0x84, 0xda, 0x58, 0x31, 0xa1, 0x30, 0xec,
-	0x2b, 0x57, 0xfa, 0x05, 0xa0, 0x73, 0x1c, 0x09, 0xfe, 0xa0, 0x67, 0xf7, 0xfc, 0x49, 0x61, 0x3a,
-	0xcf, 0x65, 0xba, 0x0c, 0x92, 0x5f, 0x01, 0x6e, 0xb8, 0x62, 0xd3, 0x54, 0xa5, 0x6c, 0x54, 0x72,
-	0x48, 0xf0, 0x07, 0xd4, 0xaf, 0x38, 0x0b, 0x1d, 0x55, 0x1d, 0x92, 0xcf, 0xc5, 0x04, 0x33, 0x96,
-	0x19, 0xa0, 0x09, 0xa6, 0xca, 0x3f, 0x90, 0x60, 0x13, 0xb6, 0xc7, 0x8f, 0x73, 0x15, 0xf2, 0x8f,
-	0xb1, 0x5b, 0x11, 0x02, 0x3b, 0x19, 0x94, 0x52, 0xe9, 0x7d, 0xf5, 0xa0, 0xa2, 0xef, 0x0a, 0xf9,
-	0x13, 0xb6, 0x46, 0x82, 0x4f, 0x50, 0xca, 0x6b, 0x94, 0x92, 0x3d, 0x20, 0xd9, 0xee, 0xa6, 0x47,
-	0xaa, 0x6b, 0x01, 0xbf, 0x61, 0x9a, 0xe6, 0x46, 0x72, 0x8d, 0x9c, 0x42, 0x3d, 0x77, 0x59, 0xc8,
-	0x4e, 0xda, 0xd3, 0xec, 0x48, 0xf9, 0x2d, 0x83, 0x3c, 0x77, 0x7d, 0xd6, 0xc8, 0x19, 0x40, 0x76,
-	0x00, 0xc8, 0x81, 0xd1, 0x5c, 0x39, 0x48, 0xfe, 0xcf, 0x2b, 0xf8, 0xc2, 0xc1, 0xff, 0x50, 0x5b,
-	0xec, 0x3b, 0xd9, 0x77, 0x7a, 0x4b, 0x47, 0xc1, 0x3f, 0x28, 0xc2, 0xce, 0xba, 0xf7, 0xa5, 0x04,
-	0x55, 0x9b, 0x97, 0x24, 0xc7, 0x50, 0xd1, 0x03, 0x64, 0x33, 0xc8, 0x8d, 0xa0, 0xdf, 0xcc, 0x21,
-	0xce, 0xf6, 0xc4, 0xd3, 0x06, 0xba, 0xa1, 0xd6, 0x20, 0x37, 0x08, 0xd6, 0x20, 0xdf, 0x6d, 0x63,
-	0x70, 0x06, 0x90, 0xed, 0xa0, 0xcd, 0x76, 0x65, 0xa1, 0x6d, 0xb6, 0xcf, 0x2c, 0xeb, 0x1a, 0xe9,
-	0x9b, 0x72, 0x2d, 0x3b, 0x58, 0xd9, 0xdf, 0xac, 0x5c, 0x2b, 0x0e, 0x4e, 0x3c, 0x32, 0x80, 0xcd,
-	0xb1, 0x12, 0xc8, 0x66, 0xdf, 0xe3, 0xa5, 0xd7, 0x87, 0xca, 0x5b, 0x1e, 0x22, 0xf9, 0x17, 0xaa,
-	0x6e, 0x98, 0xc8, 0x9e, 0x31, 0x28, 0x8c, 0x9b, 0xbf, 0x5f, 0x40, 0x9d, 0x93, 0xbb, 0x75, 0xf3,
-	0x83, 0xf7, 0xd7, 0xb7, 0x00, 0x00, 0x00, 0xff, 0xff, 0x8b, 0xe4, 0xf1, 0xee, 0x2a, 0x07, 0x00,
+	// 449 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x94, 0x5f, 0x6b, 0x13, 0x41,
+	0x14, 0xc5, 0xdd, 0x6c, 0x6d, 0x93, 0x9b, 0x54, 0x9b, 0x4b, 0xd4, 0x25, 0x14, 0x09, 0x83, 0x4a,
+	0x40, 0xa8, 0x12, 0xf1, 0x41, 0x7d, 0x90, 0x48, 0xd0, 0x97, 0x2a, 0x61, 0x92, 0xfa, 0x3e, 0x66,
+	0x2f, 0x75, 0xa1, 0xbb, 0xb3, 0xce, 0xcc, 0x22, 0xfd, 0x62, 0x7e, 0x3e, 0xd9, 0xf9, 0xd3, 0xdd,
+	0x6e, 0x5e, 0x04, 0xa1, 0x8f, 0xf3, 0xdb, 0x7b, 0xce, 0x9c, 0xb9, 0xf7, 0xb2, 0x30, 0x10, 0x65,
+	0x76, 0x56, 0x2a, 0x69, 0x24, 0xc6, 0xa2, 0xcc, 0xd8, 0x77, 0x38, 0xe4, 0xb4, 0x93, 0x2a, 0xc5,
+	0x53, 0x18, 0x6c, 0xb3, 0x9c, 0xb4, 0x11, 0x79, 0x99, 0x44, 0xb3, 0x68, 0x1e, 0xf3, 0x06, 0xe0,
+	0x04, 0xee, 0x6f, 0x65, 0x99, 0xed, 0x92, 0xde, 0x2c, 0x9a, 0x8f, 0xb8, 0x3b, 0x60, 0x02, 0x47,
+	0x6b, 0x71, 0x7d, 0x25, 0x45, 0x9a, 0xc4, 0x96, 0x87, 0x23, 0x7b, 0x0f, 0xe3, 0x75, 0x65, 0x9c,
+	0xb5, 0xe6, 0xf4, 0xab, 0x22, 0x6d, 0xf0, 0x39, 0x1c, 0x79, 0x92, 0x44, 0xb3, 0x78, 0x3e, 0x5c,
+	0x0c, 0xcf, 0xea, 0x38, 0x8e, 0xf1, 0xf0, 0x8d, 0x4d, 0x00, 0xdb, 0x5a, 0x5d, 0xca, 0x42, 0x13,
+	0xbb, 0x80, 0xf1, 0x17, 0xea, 0x3a, 0x3e, 0x83, 0xe3, 0xcf, 0x4a, 0xe6, 0xdd, 0xe0, 0xb7, 0x21,
+	0x4e, 0xa1, 0xbf, 0x16, 0xc6, 0x90, 0x2a, 0x74, 0xd2, 0x9b, 0xc5, 0xf3, 0x11, 0xbf, 0x39, 0xb3,
+	0x0f, 0x80, 0x6d, 0x5b, 0x77, 0xd9, 0xbf, 0x26, 0x7d, 0x0b, 0xc3, 0x55, 0x95, 0x97, 0x21, 0xcd,
+	0x0b, 0x78, 0xb0, 0x22, 0x6d, 0xb2, 0x42, 0x98, 0x4c, 0x16, 0x17, 0xfc, 0xdc, 0xc6, 0x19, 0xf0,
+	0x0e, 0x65, 0x0a, 0x46, 0x4e, 0xe6, 0x6f, 0x3b, 0x85, 0xc1, 0xc6, 0x08, 0x65, 0x28, 0x5d, 0x9a,
+	0xd0, 0xfa, 0x1b, 0x50, 0xbf, 0x71, 0xad, 0xe4, 0xa5, 0x22, 0xad, 0x3f, 0x5d, 0x1b, 0xd2, 0x76,
+	0x04, 0x31, 0xbf, 0x0d, 0xf1, 0x29, 0xc0, 0x56, 0x1a, 0x71, 0xe5, 0x4a, 0x62, 0x5b, 0xd2, 0x22,
+	0xec, 0x25, 0x0c, 0xcf, 0xa5, 0x48, 0x43, 0xd4, 0xfa, 0x4a, 0x59, 0xa9, 0x1d, 0x35, 0x29, 0x1b,
+	0x50, 0x07, 0x74, 0xc5, 0x77, 0x18, 0x70, 0x0c, 0x0f, 0x37, 0x3f, 0x2b, 0x93, 0xca, 0xdf, 0x85,
+	0x0f, 0xc9, 0x10, 0x4e, 0x1a, 0xe4, 0xa2, 0x2c, 0xfe, 0xf4, 0xa0, 0xff, 0x95, 0xb4, 0x16, 0x97,
+	0xa4, 0xf1, 0x15, 0x1c, 0xd4, 0x8d, 0xc4, 0x13, 0x3b, 0x9d, 0xd6, 0x28, 0xa6, 0xe3, 0x16, 0xf1,
+	0x0b, 0x74, 0xef, 0x75, 0x54, 0x0b, 0xea, 0x87, 0x79, 0x41, 0xab, 0x21, 0x5e, 0xd0, 0x7e, 0xb5,
+	0x15, 0x7c, 0x04, 0x68, 0x76, 0x11, 0x1f, 0xdb, 0xa2, 0xbd, 0xc5, 0x9e, 0x3e, 0xd9, 0xe3, 0xc1,
+	0x02, 0x97, 0x00, 0xcd, 0x7e, 0x79, 0x83, 0xbd, 0x3d, 0xf6, 0x06, 0xfb, 0x8b, 0x68, 0x33, 0xac,
+	0xe0, 0x78, 0x63, 0x14, 0x89, 0xfc, 0x7f, 0x5c, 0x16, 0x4b, 0x38, 0xf8, 0x26, 0x53, 0xc2, 0x77,
+	0xd0, 0x0f, 0x4d, 0xc5, 0x89, 0x15, 0x74, 0xda, 0x3e, 0x7d, 0xd4, 0xa1, 0xc1, 0xe4, 0xc7, 0xa1,
+	0xfd, 0x71, 0xbc, 0xf9, 0x1b, 0x00, 0x00, 0xff, 0xff, 0xc3, 0x8b, 0x5c, 0x49, 0x45, 0x04, 0x00,
 	0x00,
 }
 
@@ -904,186 +541,6 @@ var _ grpc.ClientConn
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
-
-// RaftClient is the client API for Raft service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type RaftClient interface {
-	ProcessMessage(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Payload, error)
-	JoinCluster(ctx context.Context, in *RaftContext, opts ...grpc.CallOption) (*JoinClusterResponse, error)
-	GetMembers(ctx context.Context, in *GetMembersRequest, opts ...grpc.CallOption) (*GetMembersResponse, error)
-	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
-}
-
-type raftClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewRaftClient(cc *grpc.ClientConn) RaftClient {
-	return &raftClient{cc}
-}
-
-func (c *raftClient) ProcessMessage(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Payload, error) {
-	out := new(Payload)
-	err := c.cc.Invoke(ctx, "/api.Raft/ProcessMessage", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *raftClient) JoinCluster(ctx context.Context, in *RaftContext, opts ...grpc.CallOption) (*JoinClusterResponse, error) {
-	out := new(JoinClusterResponse)
-	err := c.cc.Invoke(ctx, "/api.Raft/JoinCluster", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *raftClient) GetMembers(ctx context.Context, in *GetMembersRequest, opts ...grpc.CallOption) (*GetMembersResponse, error) {
-	out := new(GetMembersResponse)
-	err := c.cc.Invoke(ctx, "/api.Raft/GetMembers", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *raftClient) GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error) {
-	out := new(GetStatusResponse)
-	err := c.cc.Invoke(ctx, "/api.Raft/GetStatus", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// RaftServer is the server API for Raft service.
-type RaftServer interface {
-	ProcessMessage(context.Context, *raftpb.Message) (*Payload, error)
-	JoinCluster(context.Context, *RaftContext) (*JoinClusterResponse, error)
-	GetMembers(context.Context, *GetMembersRequest) (*GetMembersResponse, error)
-	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
-}
-
-// UnimplementedRaftServer can be embedded to have forward compatible implementations.
-type UnimplementedRaftServer struct {
-}
-
-func (*UnimplementedRaftServer) ProcessMessage(ctx context.Context, req *raftpb.Message) (*Payload, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ProcessMessage not implemented")
-}
-func (*UnimplementedRaftServer) JoinCluster(ctx context.Context, req *RaftContext) (*JoinClusterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method JoinCluster not implemented")
-}
-func (*UnimplementedRaftServer) GetMembers(ctx context.Context, req *GetMembersRequest) (*GetMembersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMembers not implemented")
-}
-func (*UnimplementedRaftServer) GetStatus(ctx context.Context, req *GetStatusRequest) (*GetStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
-}
-
-func RegisterRaftServer(s *grpc.Server, srv RaftServer) {
-	s.RegisterService(&_Raft_serviceDesc, srv)
-}
-
-func _Raft_ProcessMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(raftpb.Message)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).ProcessMessage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.Raft/ProcessMessage",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).ProcessMessage(ctx, req.(*raftpb.Message))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Raft_JoinCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RaftContext)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).JoinCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.Raft/JoinCluster",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).JoinCluster(ctx, req.(*RaftContext))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Raft_GetMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMembersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).GetMembers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.Raft/GetMembers",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).GetMembers(ctx, req.(*GetMembersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Raft_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).GetStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.Raft/GetStatus",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).GetStatus(ctx, req.(*GetStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _Raft_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "api.Raft",
-	HandlerType: (*RaftServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "ProcessMessage",
-			Handler:    _Raft_ProcessMessage_Handler,
-		},
-		{
-			MethodName: "JoinCluster",
-			Handler:    _Raft_JoinCluster_Handler,
-		},
-		{
-			MethodName: "GetMembers",
-			Handler:    _Raft_GetMembers_Handler,
-		},
-		{
-			MethodName: "GetStatus",
-			Handler:    _Raft_GetStatus_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "api.proto",
-}
 
 // MessagesClient is the client API for Messages service.
 //

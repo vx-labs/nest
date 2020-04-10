@@ -7,7 +7,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	api "github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/nest/raft"
+	"github.com/vx-labs/wasp/cluster/raft"
 )
 
 type State interface {

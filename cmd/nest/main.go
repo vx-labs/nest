@@ -21,10 +21,10 @@ import (
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/nest/async"
 	"github.com/vx-labs/nest/nest/fsm"
-	"github.com/vx-labs/nest/nest/membership"
-	"github.com/vx-labs/nest/nest/raft"
 	"github.com/vx-labs/nest/nest/rpc"
-	"github.com/vx-labs/nest/nest/stats"
+	"github.com/vx-labs/wasp/cluster"
+	"github.com/vx-labs/wasp/cluster/membership"
+	"github.com/vx-labs/wasp/cluster/raft"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -161,6 +161,7 @@ func main() {
 			}
 			mesh := membership.New(
 				id,
+				"nest",
 				config.GetInt("serf-port"),
 				config.GetString("serf-advertized-address"),
 				config.GetInt("serf-advertized-port"),
@@ -170,6 +171,7 @@ func main() {
 			)
 			rpcAddress := fmt.Sprintf("%s:%d", config.GetString("raft-advertized-address"), config.GetInt("raft-advertized-port"))
 			mesh.UpdateMetadata(membership.EncodeMD(id,
+				"nest",
 				rpcAddress,
 			))
 			joinList := config.GetStringSlice("join-node")
@@ -225,7 +227,7 @@ func main() {
 				peers := raft.Peers{}
 				if expectedCount := config.GetInt("raft-bootstrap-expect"); expectedCount > 1 {
 					nest.L(ctx).Debug("waiting for nodes to be discovered", zap.Int("expected_node_count", expectedCount))
-					peers, err = mesh.WaitForNodes(ctx, expectedCount, api.RaftContext{
+					peers, err = mesh.WaitForNodes(ctx, "nest", expectedCount, cluster.RaftContext{
 						ID:      id,
 						Address: rpcAddress,
 					}, rpcDialer)
@@ -261,7 +263,7 @@ func main() {
 								for _, peer := range peers {
 									ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 									err := mesh.Call(peer.ID, func(c *grpc.ClientConn) error {
-										_, err = api.NewRaftClient(c).JoinCluster(ctx, &api.RaftContext{
+										_, err = cluster.NewRaftClient(c).JoinCluster(ctx, &cluster.RaftContext{
 											ID:      id,
 											Address: rpcAddress,
 										})
@@ -351,7 +353,7 @@ func main() {
 					})
 				}
 			}
-			go stats.ListenAndServe(config.GetInt("metrics-port"))
+			//go stats.ListenAndServe(config.GetInt("metrics-port"))
 
 			healthServer.SetServingStatus("mqtt", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)

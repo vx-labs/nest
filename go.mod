@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/consul/api v1.4.0
 	github.com/hashicorp/go-immutable-radix v1.1.0 // indirect
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
-	github.com/hashicorp/memberlist v0.2.0
+	github.com/hashicorp/memberlist v0.2.0 // indirect
 	github.com/hashicorp/serf v0.8.5 // indirect
 	github.com/hashicorp/vault/api v1.0.4
 	github.com/manifoldco/promptui v0.7.0
@@ -23,12 +23,12 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/pkg/errors v0.8.1
-	github.com/prometheus/client_golang v1.5.1
+	github.com/prometheus/client_golang v1.5.1 // indirect
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.5.1
-	github.com/vx-labs/mqtt-protocol v4.3.4+incompatible // indirect
-	go.etcd.io/etcd v0.0.0-20200319002442-e784ba73c229
+	github.com/vx-labs/wasp v1.0.2
+	go.etcd.io/etcd v0.0.0-20200319002442-e784ba73c229 // indirect
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20191106202628-ed6320f186d4 // indirect
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
