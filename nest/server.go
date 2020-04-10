@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 
@@ -70,6 +71,19 @@ func FileURLReader() URLReader {
 	}
 }
 
+func HTTPURLReader() URLReader {
+	return func(ctx context.Context, url *url.URL) (io.Reader, error) {
+		resp, err := http.Get(url.String())
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			<-ctx.Done()
+			resp.Body.Close()
+		}()
+		return resp.Body, nil
+	}
+}
 func (s *server) Dump(in *api.DumpRequest, stream api.Messages_DumpServer) error {
 	ctx := stream.Context()
 	destinationURL, err := url.Parse(in.DestinationURL)
@@ -98,6 +112,10 @@ func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error
 	}
 	var urlReader URLReader
 	switch source.Scheme {
+	case "http":
+		urlReader = HTTPURLReader()
+	case "https":
+		urlReader = HTTPURLReader()
 	case "file":
 		urlReader = FileURLReader()
 	default:
