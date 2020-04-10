@@ -211,8 +211,10 @@ func main() {
 			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
 			raftNode.Serve(server)
 			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
+			waspReceiver := nest.NewWaspReceiver(stateMachine)
 			messagesServer := nest.NewServer(stateMachine, messageLog)
 			messagesServer.Serve(server)
+			waspReceiver.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("cluster listener stopped")
 
