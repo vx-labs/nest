@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -30,6 +33,10 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
+
+type Snapshot struct {
+	Remote uint64 `json:"remote"`
+}
 
 func localPrivateHost() string {
 	ifaces, err := net.Interfaces()
@@ -204,9 +211,11 @@ func main() {
 					zap.Duration("gossip_join_duration", time.Since(joinStarted)), zap.Strings("gossip_node_list", joinList))
 			}
 			raftConfig := raft.Config{
-				NodeID:      id,
-				DataDir:     config.GetString("data-dir"),
-				GetSnapshot: func() ([]byte, error) { return nil, nil },
+				NodeID:  id,
+				DataDir: config.GetString("data-dir"),
+				GetSnapshot: func() ([]byte, error) {
+					return json.Marshal(Snapshot{Remote: id})
+				},
 			}
 			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
 			raftNode.Serve(server)
@@ -290,8 +299,9 @@ func main() {
 						return
 					}
 				}()
-				raftNode.Run(ctx, peers, join)
+				raftNode.Run(ctx, messageLog.AppliedIndex(time.Now().UnixNano()), peers, join)
 			})
+			snapshotter := <-raftNode.Snapshotter()
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("records publisher stopped")
 				for {
@@ -330,9 +340,62 @@ func main() {
 					case <-ctx.Done():
 						return
 					case event := <-raftNode.Commits():
-						if event == nil {
+						if event.Payload == nil {
+							snapshot, err := snapshotter.Load()
+							if err != nil {
+								nest.L(ctx).Error("failed to load", zap.Error(err))
+							}
+							snapshotDescription := Snapshot{}
+							err = json.Unmarshal(snapshot.Data, &snapshotDescription)
+							if err != nil {
+								nest.L(ctx).Error("failed to decode snapshot", zap.Error(err))
+							}
+							nest.L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
+							file, err := ioutil.TempFile("", "sst-incoming.*.nest")
+							if err != nil {
+								nest.L(ctx).Error("failed to create tmp file to receive snapshot", zap.Error(err))
+								break
+							}
+							defer os.Remove(file.Name())
+							defer file.Close()
+							err = mesh.Call(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
+								stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{})
+								if err != nil {
+									return err
+								}
+
+								nest.L(ctx).Debug("streaming snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
+								for {
+									chunk, err := stream.Recv()
+									if err == io.EOF {
+										break
+									}
+									if err != nil {
+										return err
+									}
+									nest.L(ctx).Debug("received chunk", zap.Uint64("remote_node", snapshotDescription.Remote))
+									_, err = file.Write(chunk.Chunk)
+									if err != nil {
+										return err
+									}
+								}
+								return file.Sync()
+							})
+							nest.L(ctx).Debug("received snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
+							if err != nil {
+								nest.L(ctx).Error("failed to receive snapshot", zap.Error(err))
+								break
+							}
+							file.Seek(0, io.SeekStart)
+							nest.L(ctx).Debug("loading snapshot")
+							err = messageLog.Load(file)
+							if err != nil {
+								nest.L(ctx).Error("failed to load snapshot", zap.Error(err))
+								break
+							}
+							nest.L(ctx).Info("loaded snapshot")
 						} else {
-							stateMachine.Apply(event)
+							stateMachine.Apply(event.Index, event.Payload)
 						}
 					}
 				}
@@ -350,7 +413,7 @@ func main() {
 						defer nest.L(ctx).Info("mqtt collector stopped")
 						err := mqttCollector.Run(ctx, recordsCh)
 						if err != nil {
-							nest.L(ctx).Error("mqtt collector crahed", zap.Error(err))
+							nest.L(ctx).Error("mqtt collector crashed", zap.Error(err))
 						}
 					})
 				}

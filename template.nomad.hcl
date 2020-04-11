@@ -35,6 +35,7 @@ job "nest" {
       driver = "docker"
 
       env {
+        HTTPS_PROXY="http://http.proxy.discovery.fr-par.vx-labs.net:3128"
         CONSUL_HTTP_ADDR = "$${NOMAD_IP_rpc}:8500"
         VAULT_ADDR       = "http://active.vault.service.consul:8200/"
       }

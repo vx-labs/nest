@@ -19,6 +19,7 @@ import (
 
 var (
 	messagesBucketName []byte = []byte("messages")
+	appliedIndexKey    []byte = []byte("_index")
 	encoding                  = binary.BigEndian
 )
 
@@ -27,6 +28,8 @@ type MessageLog interface {
 	io.Closer
 	Dump(w io.Writer) error
 	Load(w io.Reader) error
+	SetApplied(timestamp int64, index uint64) error
+	AppliedIndex(timestamp int64) uint64
 	PutRecords(timestamp int64, b []*api.Record) error
 	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error)
 	Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
@@ -72,12 +75,35 @@ func (s *messageLog) Close() error {
 }
 
 func int64ToBytes(u int64) []byte {
+	return uint64ToBytes(uint64(u))
+}
+func uint64ToBytes(u uint64) []byte {
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(u))
+	binary.BigEndian.PutUint64(buf, u)
 	return buf
 }
 func bytesToInt64(b []byte) int64 {
-	return int64(binary.BigEndian.Uint64(b))
+	return int64(bytesToUint64(b))
+}
+func bytesToUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
+func (s *messageLog) AppliedIndex(timestamp int64) uint64 {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+	ts := uint64(timestamp)
+	tx := s.db.NewTransactionAt(ts, false)
+	defer tx.Discard()
+	item, err := tx.Get(appliedIndexKey)
+	if err != nil {
+		return 0
+	}
+	value, err := item.ValueCopy(nil)
+	if err != nil {
+		return 0
+	}
+	return bytesToUint64(value)
 }
 func (s *messageLog) PutRecords(timestamp int64, b []*api.Record) error {
 	s.restorelock.RLock()
@@ -133,6 +159,15 @@ func (s *messageLog) Load(source io.Reader) error {
 	s.restorelock.Lock()
 	defer s.restorelock.Unlock()
 	return s.db.Load(source, 15)
+}
+func (s *messageLog) SetApplied(timestamp int64, index uint64) error {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+	ts := uint64(timestamp)
+	tx := s.db.NewTransactionAt(ts, true)
+	defer tx.Discard()
+	tx.Set(appliedIndexKey, uint64ToBytes(index))
+	return tx.CommitAt(ts, nil)
 }
 func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error) {
 	s.restorelock.RLock()

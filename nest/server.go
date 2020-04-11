@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,6 +103,40 @@ func (s *server) Dump(in *api.DumpRequest, stream api.Messages_DumpServer) error
 		return status.Errorf(codes.InvalidArgument, "failed to open DestinationURL: %v", err)
 	}
 	return s.state.Dump(w)
+}
+
+func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
+	file, err := ioutil.TempFile("", "sst.*.nest")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	defer file.Close()
+	err = s.state.Dump(file)
+	if err != nil {
+		return err
+	}
+	err = file.Sync()
+	if err != nil {
+		return err
+	}
+	file.Seek(0, io.SeekStart)
+	chunk := make([]byte, 4096)
+	for {
+		n, err := file.Read(chunk)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		err = stream.Send(&api.SSTResponseChunk{
+			Chunk: chunk[:n],
+		})
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error {

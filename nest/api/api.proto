@@ -27,6 +27,10 @@ message DumpResponse {
   int64 ProgressBytes = 2;
   int64 TotalBytes = 3;
 }
+message SSTRequest {};
+message SSTResponseChunk {
+  bytes Chunk = 1;
+};
 message LoadRequest {
   string SourceURL = 1;
 }
@@ -36,6 +40,7 @@ message LoadResponse {
   int64 TotalBytes = 3;
 }
 service Messages {
+  rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}

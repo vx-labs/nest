@@ -27,7 +27,7 @@ require (
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.5.1
-	github.com/vx-labs/wasp v1.0.3
+	github.com/vx-labs/wasp v1.0.6
 	go.etcd.io/etcd v0.0.0-20200319002442-e784ba73c229 // indirect
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20191106202628-ed6320f186d4 // indirect
