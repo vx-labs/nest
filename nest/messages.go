@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"log"
 	"path"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/dgraph-io/badger"
 	"github.com/dgraph-io/badger/pb"
-	"github.com/golang/protobuf/proto"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 )
@@ -30,7 +30,7 @@ type MessageLog interface {
 	Load(w io.Reader) error
 	SetApplied(timestamp int64, index uint64) error
 	AppliedIndex(timestamp int64) uint64
-	PutRecords(timestamp int64, b []*api.Record) error
+	PutRecords(index uint64, timestamp int64, b []*api.Record) error
 	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error)
 	Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
 	GC()
@@ -95,6 +95,10 @@ func (s *messageLog) AppliedIndex(timestamp int64) uint64 {
 	ts := uint64(timestamp)
 	tx := s.db.NewTransactionAt(ts, false)
 	defer tx.Discard()
+	return s.appliedIndex(tx)
+}
+
+func (s *messageLog) appliedIndex(tx *badger.Txn) uint64 {
 	item, err := tx.Get(appliedIndexKey)
 	if err != nil {
 		return 0
@@ -105,19 +109,22 @@ func (s *messageLog) AppliedIndex(timestamp int64) uint64 {
 	}
 	return bytesToUint64(value)
 }
-func (s *messageLog) PutRecords(timestamp int64, b []*api.Record) error {
+func (s *messageLog) PutRecords(index uint64, timestamp int64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	ts := uint64(timestamp)
 	tx := s.db.NewTransactionAt(ts, true)
 	defer tx.Discard()
+	if s.appliedIndex(tx) > index {
+		return errors.New("outdated index")
+	}
+	err := tx.Set(appliedIndexKey, uint64ToBytes(index))
+	if err != nil {
+		return err
+	}
 	for idx := range b {
-		payload, err := proto.Marshal(b[idx])
-		if err != nil {
-			return err
-		}
-		entry := badger.NewEntry(int64ToBytes(b[idx].Timestamp), payload)
-		err = tx.SetEntry(entry)
+		entry := badger.NewEntry(b[idx].Topic, b[idx].Payload)
+		err := tx.SetEntry(entry)
 		if err != nil {
 			return err
 		}
@@ -166,6 +173,9 @@ func (s *messageLog) SetApplied(timestamp int64, index uint64) error {
 	ts := uint64(timestamp)
 	tx := s.db.NewTransactionAt(ts, true)
 	defer tx.Discard()
+	if s.appliedIndex(tx) > index {
+		return errors.New("outdated index")
+	}
 	tx.Set(appliedIndexKey, uint64ToBytes(index))
 	return tx.CommitAt(ts, nil)
 }
@@ -174,7 +184,15 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 	defer s.restorelock.RUnlock()
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
 	stream.ChooseKey = func(item *badger.Item) bool {
-		return fromTimestamp < bytesToInt64(item.Key())
+		matched := len(patterns) == 0
+		if !matched {
+			for _, pattern := range patterns {
+				if match(pattern, item.Key()) {
+					return true
+				}
+			}
+		}
+		return matched
 	}
 	stream.KeyToList = func(key []byte, iterator *badger.Iterator) (*pb.KVList, error) {
 		list := &pb.KVList{}
@@ -187,7 +205,7 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 			if err != nil {
 				return nil, err
 			}
-			if item.Version() >= uint64(fromTimestamp) {
+			if fromTimestamp == -1 || item.Version() > uint64(fromTimestamp) {
 				kv := &pb.KV{
 					Key:       item.KeyCopy(nil),
 					Value:     valCopy,
@@ -195,18 +213,24 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 					Version:   item.Version(),
 					ExpiresAt: item.ExpiresAt(),
 				}
+
 				list.Kv = append(list.Kv, kv)
+				if fromTimestamp == -1 {
+					break
+				}
 			}
 		}
 		return list, nil
 	}
 	var lastRecord int64 = fromTimestamp
 	stream.Send = func(list *pb.KVList) error {
-		for _, kv := range list.Kv {
-			record := &api.Record{}
-			err := proto.Unmarshal(kv.Value, record)
-			if err != nil {
-				return err
+		length := len(list.Kv) - 1
+		for idx := range list.Kv {
+			kv := list.Kv[length-idx]
+			record := &api.Record{
+				Timestamp: int64(kv.Version),
+				Payload:   kv.Value,
+				Topic:     kv.Key,
 			}
 			matched := len(patterns) == 0
 			if !matched {
@@ -218,7 +242,7 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 				}
 			}
 			if matched {
-				err = f(record.Topic, record.Timestamp, record.Payload)
+				err := f(record.Topic, record.Timestamp, record.Payload)
 				if err != nil {
 					return err
 				}

@@ -11,7 +11,7 @@ import (
 )
 
 type State interface {
-	PutRecords(int64, []*api.Record) error
+	PutRecords(uint64, int64, []*api.Record) error
 	SetApplied(int64, uint64) error
 }
 
@@ -68,11 +68,6 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 	return f.commit(ctx, payload)
 }
 func (f *FSM) PutRecords(ctx context.Context, records []*api.Record) error {
-	for _, record := range records {
-		if record.Timestamp == 0 {
-			record.Timestamp = time.Now().UnixNano()
-		}
-	}
 	payload, err := encode(&StateTransition{Event: &StateTransition_RecordsPut{
 		RecordsPut: &RecordsPut{
 			Timestamp: time.Now().UnixNano(),
@@ -94,12 +89,13 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
 		case *StateTransition_RecordsPut:
-			err = f.state.PutRecords(event.RecordsPut.Timestamp, event.RecordsPut.Records)
+			err = f.state.PutRecords(index, event.RecordsPut.Timestamp, event.RecordsPut.Records)
+		default:
+			err = f.state.SetApplied(now, index)
 		}
 		if err != nil {
 			return err
 		}
 	}
-	f.state.SetApplied(now, index)
 	return nil
 }

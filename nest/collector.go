@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/url"
-	"time"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/vx-labs/nest/nest/api"
@@ -30,9 +29,8 @@ func (m *mqttCollector) Run(ctx context.Context, ch chan *api.Record) error {
 			L(ctx).Debug("mqtt message collected",
 				zap.String("mqtt_topic", msg.Topic()), zap.String("mqtt_payload", string(msg.Payload())))
 			ch <- &api.Record{
-				Timestamp: time.Now().UnixNano(),
-				Payload:   msg.Payload(),
-				Topic:     []byte(msg.Topic()),
+				Payload: msg.Payload(),
+				Topic:   []byte(msg.Topic()),
 			}
 		})
 	}
