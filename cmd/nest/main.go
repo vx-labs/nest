@@ -299,7 +299,7 @@ func main() {
 						return
 					}
 				}()
-				raftNode.Run(ctx, messageLog.AppliedIndex(time.Now().UnixNano()), peers, join)
+				raftNode.Run(ctx, peers, join, raft.NodeConfig{AppliedIndex: messageLog.AppliedIndex(time.Now().UnixNano())})
 			})
 			snapshotter := <-raftNode.Snapshotter()
 			async.Run(ctx, &wg, func(ctx context.Context) {
