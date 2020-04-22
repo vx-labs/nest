@@ -184,6 +184,9 @@ func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTime
 	defer s.restorelock.RUnlock()
 	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
 	stream.ChooseKey = func(item *badger.Item) bool {
+		if bytes.Equal(item.Key(), appliedIndexKey) {
+			return false
+		}
 		matched := len(patterns) == 0
 		if !matched {
 			for _, pattern := range patterns {
