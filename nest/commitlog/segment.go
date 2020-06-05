@@ -16,17 +16,18 @@ var (
 
 type Segment interface {
 	io.Closer
+	io.Writer
+	io.ReaderAt
 }
 
 type segment struct {
-	mtx             sync.Mutex
-	baseOffset      uint64
-	currentOffset   uint64
-	currentPosition uint64
-	fd              *os.File
-	index           Index
-	maxRecordCount  uint64
-	path            string
+	mtx            sync.Mutex
+	baseOffset     uint64
+	currentOffset  uint64
+	fd             *os.File
+	index          Index
+	maxRecordCount uint64
+	path           string
 }
 
 func segmentName(datadir string, id uint64) string {
@@ -43,6 +44,9 @@ func (s *segment) Close() error {
 
 func (i *segment) FilePath() string {
 	return i.path
+}
+func (i *segment) BaseOffset() uint64 {
+	return i.baseOffset
 }
 func (i *segment) Name() string {
 	return i.fd.Name()
@@ -96,4 +100,25 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, err
 	}
 	// TODO: check segment integrity ?
 	return s, nil
+}
+
+func (e *segment) ReadAt(buf []byte, logOffset int64) (n int, err error) {
+	offset := uint64(logOffset) - e.baseOffset
+	pos, err := e.index.readPosition(offset)
+	if err != nil {
+		return 0, err
+	}
+	return e.fd.ReadAt(buf, int64(pos))
+}
+
+func (e *segment) Write(buf []byte) (int, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	entry := newEntry(e.currentOffset, buf)
+	_, err := writeEntry(entry, e.fd)
+	if err != nil {
+		return 0, err
+	}
+	e.currentOffset++
+	return len(buf), nil
 }
