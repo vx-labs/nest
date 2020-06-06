@@ -13,6 +13,7 @@ var (
 	ErrSegmentAlreadyExists = errors.New("segment already exists")
 	ErrSegmentDoesNotExist  = errors.New("segment does not exist")
 	ErrSegmentFull          = errors.New("segment is full")
+	ErrSegmentCorrupt       = errors.New("segment corrupted")
 )
 
 type Segment interface {
@@ -108,7 +109,7 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, err
 	if err != nil {
 		return nil, err
 	}
-	fd, err := os.Open(filename)
+	fd, err := os.OpenFile(filename, os.O_RDWR, 0650)
 	if err != nil {
 		return nil, err
 	}
@@ -116,16 +117,44 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, err
 	if err != nil {
 		return nil, err
 	}
+	offset, err := checkSegmentIntegrity(fd, maxRecordCount)
+	if err != nil {
+		return nil, err
+	}
 	s := &segment{
-		path:           filename,
-		baseOffset:     id,
-		currentOffset:  uint64(position),
-		maxRecordCount: maxRecordCount,
-		index:          idx,
-		fd:             fd,
+		path:            filename,
+		baseOffset:      id,
+		currentOffset:   offset,
+		currentPosition: uint64(position),
+		maxRecordCount:  maxRecordCount,
+		index:           idx,
+		fd:              fd,
 	}
 	// TODO: check segment integrity ?
 	return s, nil
+}
+
+func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
+	_, err := r.Seek(0, 0)
+	if err != nil {
+		return 0, ErrSegmentCorrupt
+	}
+	buf := make([]byte, entryHeaderSize)
+	var offset uint64
+	for offset = 0; offset < size; offset++ {
+		n, err := r.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if n != entryHeaderSize {
+			return offset, ErrSegmentCorrupt
+		}
+		_, err = r.Seek(2, int(encoding.Uint64(buf[0:8])))
+		if err != nil {
+			return offset, ErrSegmentCorrupt
+		}
+	}
+	return offset, nil
 }
 
 func (e *segment) ReadEntryAt(buf []byte, logOffset int64) (Entry, error) {

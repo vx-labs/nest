@@ -24,6 +24,18 @@ func TestSegment(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, value, entry.Payload())
 	})
+	t.Run("should close then reopen without error", func(t *testing.T) {
+		value := []byte("test")
+		err := s.Close()
+		require.NoError(t, err)
+		s, err = openSegment(datadir, 0, 200)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1), s.CurrentOffset())
+		require.Equal(t, uint64(entryHeaderSize+len(value)), s.Size())
+		entry, err := s.ReadEntryAt(make([]byte, entryHeaderSize), 0)
+		require.NoError(t, err)
+		require.Equal(t, value, entry.Payload())
+	})
 
 }
 
@@ -45,6 +57,14 @@ func BenchmarkSegment(b *testing.B) {
 		buf := make([]byte, entryHeaderSize)
 		for i := 0; i < b.N; i++ {
 			s.ReadEntryAt(buf, 0)
+		}
+	})
+	b.Run("open", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			err := s.Close()
+			require.NoError(b, err)
+			s, err = openSegment(datadir, 0, 20000000)
+			require.NoError(b, err)
 		}
 	})
 
