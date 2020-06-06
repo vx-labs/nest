@@ -22,6 +22,14 @@ func TestIndex(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(254), val)
 	})
+	t.Run("should close then re-open without error nor lossing data", func(t *testing.T) {
+		require.NoError(t, index.Close())
+		index, err := openIndex(datadir, 0, 200)
+		require.NoError(t, err)
+		val, err := index.readPosition(2)
+		require.NoError(t, err)
+		require.Equal(t, uint64(254), val)
+	})
 }
 
 func BenchmarkIndex(b *testing.B) {

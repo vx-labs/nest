@@ -26,6 +26,7 @@ var (
 	ErrMMapFailed            = errors.New("mmap failed")
 	ErrFSyncFailed           = errors.New("file sync failed")
 	ErrMSyncFailed           = errors.New("mmap sync failed")
+	ErrIndexCorrupt          = errors.New("index corrupt")
 )
 
 type Index interface {
@@ -70,14 +71,17 @@ func openIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
 	if !fileExists(filename) {
 		return nil, ErrIndexDoesNotExist
 	}
-	fd, err := os.Open(filename)
+	fd, err := os.OpenFile(filename, os.O_RDWR, 0650)
 	if err != nil {
 		return nil, err
 	}
 
 	idx := &index{fd: fd, path: filename}
 
-	// TODO: check index integrity
+	err = verifyIndex(fd, segmentSize)
+	if err != nil {
+		return nil, err
+	}
 	return idx, idx.mmap()
 }
 
@@ -88,6 +92,26 @@ func (i *index) Name() string {
 	return i.fd.Name()
 }
 
+func verifyIndex(r io.ReadSeeker, size uint64) error {
+	_, err := r.Seek(0, 0)
+	if err != nil {
+		return ErrIndexCorrupt
+	}
+	buf := make([]byte, indexValueSize)
+	var i uint64
+	for i = 0; i < size; i++ {
+		n, err := r.Read(buf)
+		if err != nil || n != indexValueSize {
+			return ErrIndexCorrupt
+		}
+	}
+	n, err := r.Read(buf)
+	if err == io.EOF && n == 0 {
+		_, err := r.Seek(0, 0)
+		return err
+	}
+	return ErrIndexCorrupt
+}
 func (i *index) mmap() error {
 	mmapedData, err := gommap.Map(i.fd.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED)
 	if err != nil {
