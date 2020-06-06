@@ -1,6 +1,7 @@
 package commitlog
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -47,11 +48,21 @@ func (e *commitlog) appendSegment(offset uint64) error {
 	return nil
 }
 
+func (e *commitlog) lookupOffset(offset uint64) int {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	count := len(e.segments)
+	idx := sort.Search(count, func(i int) bool {
+		return e.segments[i].BaseOffset() > offset
+	})
+	return idx - 1
+}
+
 func (e *commitlog) Write(value []byte) (int, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	if offset := e.activeSegment.CurrentOffset(); offset >= e.segmentMaxRecordCount {
-		err := e.appendSegment(e.activeSegment.BaseOffset() + 1)
+	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
+		err := e.appendSegment(uint64(len(e.segments)) * e.segmentMaxRecordCount)
 		if err != nil {
 			return 0, errors.Wrap(err, "failed to extend log")
 		}
