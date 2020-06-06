@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type log struct {
+type commitlog struct {
 	datadir               string
 	mtx                   sync.Mutex
 	activeSegment         Segment
@@ -14,15 +14,15 @@ type log struct {
 	segmentMaxRecordCount uint64
 }
 
-func createLog(datadir string, segmentMaxRecordCount uint64) (*log, error) {
-	l := &log{
+func createLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error) {
+	l := &commitlog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
 	return l, l.appendSegment(0)
 }
 
-func (e *log) Delete() error {
+func (e *commitlog) Delete() error {
 	for idx := range e.segments {
 		err := e.segments[idx].Delete()
 		if err != nil {
@@ -31,17 +31,23 @@ func (e *log) Delete() error {
 	}
 	return nil
 }
-func (e *log) appendSegment(offset uint64) error {
+func (e *commitlog) appendSegment(offset uint64) error {
 	segment, err := createSegment(e.datadir, offset, e.segmentMaxRecordCount)
 	if err != nil {
 		return errors.Wrap(err, "failed to create new segment")
 	}
 	e.segments = append(e.segments, segment)
+	if e.activeSegment != nil {
+		err = e.activeSegment.Close()
+		if err != nil {
+			return err
+		}
+	}
 	e.activeSegment = segment
 	return nil
 }
 
-func (e *log) Write(value []byte) (int, error) {
+func (e *commitlog) Write(value []byte) (int, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if offset := e.activeSegment.CurrentOffset(); offset >= e.segmentMaxRecordCount {
