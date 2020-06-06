@@ -12,7 +12,8 @@ var (
 )
 
 const (
-	checksumSize uint64 = 4
+	checksumSize    int = 4
+	entryHeaderSize int = 8 + 8 + checksumSize
 )
 
 type Entry interface {
@@ -24,68 +25,74 @@ type Entry interface {
 }
 
 type entry struct {
-	size     uint64
-	offset   uint64
-	checksum []byte
-	payload  []byte
+	payloadSize uint64
+	offset      uint64
+	checksum    []byte
+	payload     []byte
 }
 
-func (e entry) Size() uint64     { return e.size }
+func hash(b []byte) []byte {
+	crc := crc32.NewIEEE()
+	crc.Write(b)
+	return crc.Sum(nil)
+}
+
+func (e entry) Size() uint64     { return e.payloadSize }
 func (e entry) Offset() uint64   { return e.offset }
 func (e entry) Payload() []byte  { return e.payload }
 func (e entry) Checksum() []byte { return e.checksum }
-func (e entry) IsValid() bool    { return bytes.Equal(crc32.NewIEEE().Sum(e.payload), e.checksum) }
+func (e entry) IsValid() bool    { return bytes.Equal(hash(e.payload), e.checksum) }
 
 func newEntry(offset uint64, payload []byte) Entry {
 	return entry{
-		size:     uint64(8) + uint64(8) + uint64(len(payload)) + checksumSize,
-		offset:   offset,
-		checksum: crc32.NewIEEE().Sum(payload),
-		payload:  payload,
+		payloadSize: uint64(len(payload)),
+		offset:      offset,
+		checksum:    hash(payload),
+		payload:     payload,
 	}
 }
 func readEntry(r io.Reader, buf []byte) (Entry, error) {
-	if len(buf) < 8 {
+	if len(buf) != entryHeaderSize {
 		return nil, ErrInvalidBufferSize
 	}
-	_, err := r.Read(buf[0:8])
+	_, err := io.ReadFull(r, buf)
 	if err != nil {
 		return nil, err
 	}
-	size := encoding.Uint64(buf[0:8])
-	if uint64(len(buf)) < size {
+	payloadSize := encoding.Uint64(buf[0:8])
+	if uint64(len(buf)) < payloadSize {
 		return nil, ErrInvalidBufferSize
 	}
-	_, err = r.Read(buf[8:size])
+	bodyBuf := make([]byte, payloadSize+uint64(entryHeaderSize))
+	copy(bodyBuf[0:entryHeaderSize], buf)
+	_, err = io.ReadFull(r, bodyBuf[entryHeaderSize:])
 	if err != nil {
 		return nil, err
 	}
-	return decodeEntry(buf)
+	return decodeEntry(bodyBuf)
 }
 
 func decodeEntry(buf []byte) (Entry, error) {
 	return &entry{
-		size:     encoding.Uint64(buf[0:8]),
-		offset:   encoding.Uint64(buf[8:16]),
-		checksum: buf[16 : 16+checksumSize],
-		payload:  buf[16+checksumSize:],
+		payloadSize: encoding.Uint64(buf[0:8]),
+		offset:      encoding.Uint64(buf[8:16]),
+		checksum:    buf[16 : 16+checksumSize],
+		payload:     buf[16+checksumSize:],
 	}, nil
 }
-func encodeEntry(e Entry, buf []byte) error {
-	if uint64(len(buf)) < e.Size() {
-		return ErrInvalidBufferSize
-	}
+func writeEntry(e Entry, w io.Writer) (int, error) {
+	buf := make([]byte, entryHeaderSize)
 	encoding.PutUint64(buf[0:8], e.Size())
 	encoding.PutUint64(buf[8:16], e.Offset())
-	copy(buf[16:16+checksumSize], e.Checksum())
-	copy(buf[16+checksumSize:], e.Payload())
-	return nil
-}
-func writeEntry(e Entry, w io.Writer) (int, error) {
-	buf := make([]byte, e.Size())
-	err := encodeEntry(e, buf)
+	copy(buf[16:20], e.Checksum())
+	total, err := w.Write(buf)
 	if err != nil {
-		return 0, err
+		return total, err
 	}
-	return w.Write(buf)
+	n, err := w.Write(e.Payload())
+	total += n
+	if err != nil {
+		return total, err
+	}
+	return total, nil
 }

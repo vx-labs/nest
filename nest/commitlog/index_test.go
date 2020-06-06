@@ -16,10 +16,6 @@ func TestIndex(t *testing.T) {
 		_, err := createIndex(datadir, 0, 200)
 		require.Error(t, err)
 	})
-	t.Run("should not allow creating an existing index", func(t *testing.T) {
-		_, err := createIndex(datadir, 0, 200)
-		require.Error(t, err)
-	})
 	t.Run("should write provided value", func(t *testing.T) {
 		require.NoError(t, index.writePosition(2, 254))
 		val, err := index.readPosition(2)
