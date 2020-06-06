@@ -38,12 +38,9 @@ type Index interface {
 }
 
 type index struct {
-	path        string
-	baseOffset  uint64
-	curOffset   uint64
-	segmentSize uint64
-	fd          *os.File
-	data        gommap.MMap
+	path string
+	fd   *os.File
+	data gommap.MMap
 }
 
 func indexName(datadir string, id uint64) string {
@@ -65,7 +62,7 @@ func createIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
 		os.Remove(filename)
 		return nil, err
 	}
-	idx := &index{baseOffset: segmentSize * id, segmentSize: segmentSize, fd: fd, path: filename}
+	idx := &index{fd: fd, path: filename}
 	return idx, idx.mmap()
 }
 func openIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
@@ -78,7 +75,7 @@ func openIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
 		return nil, err
 	}
 
-	idx := &index{baseOffset: segmentSize * id, segmentSize: segmentSize, fd: fd, path: filename}
+	idx := &index{fd: fd, path: filename}
 
 	// TODO: check index integrity
 	return idx, idx.mmap()
