@@ -24,7 +24,7 @@ type Segment interface {
 	CurrentOffset() uint64
 	Size() uint64
 	ReadEntryAt(buf []byte, logOffset int64) (Entry, error)
-	ReaderFrom(offset uint64) io.Reader
+	ReaderFrom(offset uint64) io.ReadSeeker
 	Delete() error
 	io.Closer
 	io.Writer
@@ -174,7 +174,7 @@ func (e *segment) ReadEntryAt(buf []byte, logOffset int64) (Entry, error) {
 	return readEntry(&readerAt{pos: position, r: e.fd}, buf)
 }
 
-func (e *segment) ReaderFrom(offset uint64) io.Reader {
+func (e *segment) ReaderFrom(offset uint64) io.ReadSeeker {
 	return &segmentReader{
 		headerBuf: make([]byte, entryHeaderSize),
 		offset:    offset,
@@ -211,6 +211,30 @@ type segmentReader struct {
 	segment      Segment
 }
 
+func (s *segmentReader) Seek(offset int64, whence int) (int64, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	var newOffset int64
+	switch whence {
+	case io.SeekStart:
+		newOffset = int64(s.segment.BaseOffset()) + offset
+	case io.SeekCurrent:
+		newOffset = int64(s.offset) + offset
+	case io.SeekEnd:
+		newOffset = int64(s.segment.CurrentOffset()) + offset
+	}
+	if newOffset > int64(s.segment.CurrentOffset()) {
+		s.offset = s.segment.CurrentOffset()
+	} else if newOffset < int64(s.segment.BaseOffset()) {
+		s.offset = s.segment.BaseOffset()
+	} else {
+		s.offset = uint64(newOffset)
+	}
+	s.entryPos = 0
+	s.currentEntry = nil
+
+	return int64(s.offset), nil
+}
 func (s *segmentReader) Read(p []byte) (int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()

@@ -81,7 +81,35 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, io.EOF, err)
 		require.Equal(t, 0, n)
 	})
-
+	t.Run("should allow seeking position in reader", func(t *testing.T) {
+		r := s.ReaderFrom(0).(*segmentReader)
+		t.Run("start", func(t *testing.T) {
+			r.Seek(1, io.SeekStart)
+			require.Equal(t, uint64(1), r.offset)
+			r.Seek(2, io.SeekStart)
+			require.Equal(t, uint64(2), r.offset)
+			r.Seek(3, io.SeekStart)
+			require.Equal(t, uint64(2), r.offset)
+			r.Seek(0, io.SeekStart)
+			require.Equal(t, uint64(0), r.offset)
+		})
+		t.Run("current", func(t *testing.T) {
+			r.Seek(1, io.SeekCurrent)
+			require.Equal(t, uint64(1), r.offset)
+			r.Seek(1, io.SeekCurrent)
+			require.Equal(t, uint64(2), r.offset)
+			r.Seek(1, io.SeekCurrent)
+			require.Equal(t, uint64(2), r.offset)
+			r.Seek(-1, io.SeekCurrent)
+			require.Equal(t, uint64(1), r.offset)
+		})
+		t.Run("end", func(t *testing.T) {
+			r.Seek(1, io.SeekEnd)
+			require.Equal(t, uint64(2), r.offset)
+			r.Seek(-1, io.SeekEnd)
+			require.Equal(t, uint64(1), r.offset)
+		})
+	})
 }
 
 func BenchmarkSegment(b *testing.B) {
