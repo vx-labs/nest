@@ -51,7 +51,7 @@ func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 		if offsetStr := strings.TrimSuffix(file.Name(), ".log"); offsetStr != file.Name() {
 			offset, err := strconv.ParseUint(offsetStr, 10, 64)
 			if err == nil {
-				segment, err := openSegment(datadir, offset, segmentMaxRecordCount, false)
+				segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
 				if err != nil {
 					return nil, ErrCorruptedLog
 				}
