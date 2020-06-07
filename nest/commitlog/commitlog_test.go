@@ -19,7 +19,7 @@ func TestCommitLog(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(value), n)
 	}
-	l := clog.(*commitlog)
+	l := clog.(*commitLog)
 	require.Equal(t, 5, len(l.segments))
 	t.Run("should close then reopen without error", func(t *testing.T) {
 		require.NoError(t, clog.Close())
@@ -27,7 +27,7 @@ func TestCommitLog(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("should allow looking up for offset", func(t *testing.T) {
-		l := clog.(*commitlog)
+		l := clog.(*commitLog)
 		require.Equal(t, uint64(20), l.lookupOffset(27))
 		require.Equal(t, uint64(0), l.lookupOffset(9))
 		require.Equal(t, uint64(10), l.lookupOffset(10))

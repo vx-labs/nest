@@ -16,7 +16,7 @@ var (
 	ErrCorruptedLog = errors.New("corrupted commitlog")
 )
 
-type commitlog struct {
+type commitLog struct {
 	datadir               string
 	mtx                   sync.Mutex
 	activeSegment         Segment
@@ -32,14 +32,14 @@ type CommitLog interface {
 }
 
 func createLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
-	l := &commitlog{
+	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
 	return l, l.appendSegment(0)
 }
 func openLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
-	l := &commitlog{
+	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
@@ -72,7 +72,7 @@ func openLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	return l, nil
 }
 
-func (e *commitlog) Close() error {
+func (e *commitLog) Close() error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
@@ -81,7 +81,7 @@ func (e *commitlog) Close() error {
 	}
 	return nil
 }
-func (e *commitlog) Delete() error {
+func (e *commitLog) Delete() error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if e.activeSegment != nil {
@@ -98,7 +98,7 @@ func (e *commitlog) Delete() error {
 	}
 	return nil
 }
-func (e *commitlog) appendSegment(offset uint64) error {
+func (e *commitLog) appendSegment(offset uint64) error {
 	segment, err := createSegment(e.datadir, offset, e.segmentMaxRecordCount)
 	if err != nil {
 		return errors.Wrap(err, "failed to create new segment")
@@ -115,7 +115,7 @@ func (e *commitlog) appendSegment(offset uint64) error {
 }
 
 // lookupOffset eturns the baseOffset (and thus, the segment id) of the segment containing the provided offset
-func (e *commitlog) lookupOffset(offset uint64) uint64 {
+func (e *commitLog) lookupOffset(offset uint64) uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	count := len(e.segments)
@@ -125,11 +125,11 @@ func (e *commitlog) lookupOffset(offset uint64) uint64 {
 	return e.segments[idx-1]
 }
 
-func (e *commitlog) readSegment(id uint64) (Segment, error) {
+func (e *commitLog) readSegment(id uint64) (Segment, error) {
 	return openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
 }
 
-func (e *commitlog) ReaderFrom(offset uint64) (io.Reader, error) {
+func (e *commitLog) ReaderFrom(offset uint64) (io.Reader, error) {
 	idx := e.lookupOffset(offset)
 	segment, err := e.readSegment(uint64(idx))
 	if err != nil {
@@ -142,7 +142,7 @@ func (e *commitlog) ReaderFrom(offset uint64) (io.Reader, error) {
 		currentReader:  segment.ReaderFrom(offset),
 	}, nil
 }
-func (e *commitlog) Write(value []byte) (int, error) {
+func (e *commitLog) Write(value []byte) (int, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
@@ -158,7 +158,7 @@ type commitlogReader struct {
 	mtx            sync.Mutex
 	currentReader  io.Reader
 	currentSegment Segment
-	log            *commitlog
+	log            *commitLog
 	currentOffset  uint64
 }
 
