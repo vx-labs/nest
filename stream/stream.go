@@ -101,3 +101,10 @@ func openStream(name, datadir string) (Stream, error) {
 	}
 	return &stream{name: name, shards: shards}, nil
 }
+
+func Open(name, datadir string) (Stream, error) {
+	if fileExists(path.Join(datadir, "streams", name)) {
+		return openStream(name, datadir)
+	}
+	return createStream(name, datadir, 3)
+}
