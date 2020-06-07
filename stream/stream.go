@@ -28,7 +28,8 @@ func hashShardKey(key []byte, shardCount int) int {
 type Stream interface {
 	io.Closer
 	Writer(shardKey []byte) io.Writer
-	Reader(shardKey []byte, offset uint64) (io.Reader, error)
+	Reader(shard int, offset uint64) (io.ReadSeeker, error)
+	Shards() int
 }
 
 func (s *stream) Close() error {
@@ -48,10 +49,18 @@ func (s *stream) Writer(shardKey []byte) io.Writer {
 	defer s.mtx.Unlock()
 	return s.shards[hashShardKey(shardKey, len(s.shards))]
 }
-func (s *stream) Reader(shardKey []byte, offset uint64) (io.Reader, error) {
+func (s *stream) Shards() int {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	return s.shards[hashShardKey(shardKey, len(s.shards))].ReaderFrom(offset)
+	return len(s.shards)
+}
+func (s *stream) Reader(shard int, offset uint64) (io.ReadSeeker, error) {
+	if shard >= len(s.shards) {
+		return nil, errors.New("shard index too big")
+	}
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	return s.shards[shard].ReaderFrom(offset)
 }
 
 func createStream(name, datadir string, shardCount int) (Stream, error) {

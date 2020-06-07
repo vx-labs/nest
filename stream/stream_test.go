@@ -19,7 +19,7 @@ func TestStream(t *testing.T) {
 	defer func() {
 		os.RemoveAll(datadir)
 	}()
-	s, err := createStream("test", datadir, 5)
+	s, err := createStream("test", datadir, 1)
 	require.NoError(t, err)
 	value := []byte("test")
 
@@ -30,8 +30,13 @@ func TestStream(t *testing.T) {
 			require.Equal(t, len(value), n)
 		}
 	})
+	t.Run("close then open", func(t *testing.T) {
+		s.Close()
+		s, err = openStream("test", datadir)
+		require.NoError(t, err)
+	})
 	t.Run("read from start", func(t *testing.T) {
-		r, err := s.Reader([]byte("a"), 0)
+		r, err := s.Reader(0, 0)
 		require.NoError(t, err)
 
 		buf := make([]byte, len(value))
@@ -47,7 +52,7 @@ func TestStream(t *testing.T) {
 
 	})
 	t.Run("read from offset", func(t *testing.T) {
-		r, err := s.Reader([]byte("a"), 250)
+		r, err := s.Reader(0, 250)
 		require.NoError(t, err)
 
 		buf := make([]byte, len(value))

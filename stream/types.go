@@ -4,7 +4,7 @@ import "io"
 
 type Log interface {
 	io.WriteCloser
-	ReaderFrom(offset uint64) (io.Reader, error)
+	ReaderFrom(offset uint64) (io.ReadSeeker, error)
 }
 
 type Entry struct {
