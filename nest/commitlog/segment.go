@@ -102,7 +102,7 @@ func createSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, e
 	return s, nil
 }
 
-func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, error) {
+func openSegment(datadir string, id uint64, maxRecordCount uint64, write bool) (Segment, error) {
 	filename := segmentName(datadir, id)
 	if !fileExists(filename) {
 		return nil, ErrSegmentDoesNotExist
@@ -111,11 +111,15 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, err
 	if err != nil {
 		return nil, err
 	}
-	fd, err := os.OpenFile(filename, os.O_RDWR, 0650)
+	perm := os.O_RDONLY
+	if write {
+		perm = os.O_RDWR
+	}
+	fd, err := os.OpenFile(filename, perm, 0650)
 	if err != nil {
 		return nil, err
 	}
-	position, err := fd.Seek(0, 2)
+	position, err := fd.Seek(0, io.SeekEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +136,11 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, err
 		index:           idx,
 		fd:              fd,
 	}
-	// TODO: check segment integrity ?
 	return s, nil
 }
 
 func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
-	_, err := r.Seek(0, 0)
+	_, err := r.Seek(0, io.SeekStart)
 	if err != nil {
 		return 0, ErrSegmentCorrupt
 	}
@@ -146,12 +149,12 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 	for offset = 0; offset < size; offset++ {
 		n, err := r.Read(buf)
 		if err == io.EOF {
-			break
+			return offset, nil
 		}
 		if n != entryHeaderSize {
 			return offset, ErrSegmentCorrupt
 		}
-		_, err = r.Seek(2, int(encoding.Uint64(buf[0:8])))
+		_, err = r.Seek(int64(encoding.Uint64(buf[0:8])), io.SeekCurrent)
 		if err != nil {
 			return offset, ErrSegmentCorrupt
 		}

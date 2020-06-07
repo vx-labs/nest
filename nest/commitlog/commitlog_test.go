@@ -1,6 +1,7 @@
 package commitlog
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,21 +9,31 @@ import (
 
 func TestCommitLog(t *testing.T) {
 	datadir := "/tmp"
-	s, err := createLog(datadir, 10)
+	commitlog, err := createLog(datadir, 10)
 	require.NoError(t, err)
-	defer s.Delete()
+	defer commitlog.Delete()
 	value := []byte("test")
 
 	for i := 0; i < 50; i++ {
-		n, err := s.Write(value)
+		n, err := commitlog.Write(value)
 		require.NoError(t, err)
 		require.Equal(t, len(value), n)
 	}
-	require.Equal(t, 5, len(s.segments))
+	require.Equal(t, 5, len(commitlog.segments))
 	t.Run("should allow looking up for offset", func(t *testing.T) {
-		require.Equal(t, 2, s.lookupOffset(27))
-		require.Equal(t, 0, s.lookupOffset(9))
-		require.Equal(t, 1, s.lookupOffset(10))
+		require.Equal(t, uint64(20), commitlog.lookupOffset(27))
+		require.Equal(t, uint64(0), commitlog.lookupOffset(9))
+		require.Equal(t, uint64(10), commitlog.lookupOffset(10))
+	})
+	t.Run("should allow reading from log", func(t *testing.T) {
+		r, err := commitlog.ReaderFrom(0)
+		require.NoError(t, err)
+		buf := make([]byte, len(value))
+		for i := 0; i < 50; i++ {
+			n, err := r.Read(buf)
+			require.NoError(t, err, fmt.Sprintf("index: %d", i))
+			require.Equal(t, len(value), n)
+		}
 	})
 }
 

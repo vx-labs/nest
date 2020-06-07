@@ -29,7 +29,7 @@ func TestSegment(t *testing.T) {
 		value := []byte("test")
 		err := s.Close()
 		require.NoError(t, err)
-		s, err = openSegment(datadir, 0, 200)
+		s, err = openSegment(datadir, 0, 200, true)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), s.CurrentOffset())
 		require.Equal(t, uint64(entryHeaderSize+len(value)), s.Size())
@@ -108,7 +108,7 @@ func BenchmarkSegment(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			err := s.Close()
 			require.NoError(b, err)
-			s, err = openSegment(datadir, 0, 20000000)
+			s, err = openSegment(datadir, 0, 20000000, true)
 			require.NoError(b, err)
 		}
 	})
