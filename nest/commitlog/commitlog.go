@@ -13,7 +13,7 @@ type commitlog struct {
 	datadir               string
 	mtx                   sync.Mutex
 	activeSegment         Segment
-	segments              []Segment
+	segments              []uint64
 	segmentMaxRecordCount uint64
 }
 
@@ -26,10 +26,13 @@ func createLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error)
 }
 
 func (e *commitlog) Delete() error {
-	for idx := range e.segments {
-		err := e.segments[idx].Delete()
-		if err != nil {
-			return err
+	for _, idx := range e.segments {
+		segment, err := openSegment(e.datadir, idx, e.segmentMaxRecordCount, false)
+		if err == nil {
+			err = segment.Delete()
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -39,7 +42,7 @@ func (e *commitlog) appendSegment(offset uint64) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create new segment")
 	}
-	e.segments = append(e.segments, segment)
+	e.segments = append(e.segments, offset)
 	if e.activeSegment != nil {
 		err = e.activeSegment.Close()
 		if err != nil {
@@ -50,15 +53,15 @@ func (e *commitlog) appendSegment(offset uint64) error {
 	return nil
 }
 
-// lookupOffset eturns the baseOffset of the segment containing the provided offset
+// lookupOffset eturns the baseOffset (and thus, the segment id) of the segment containing the provided offset
 func (e *commitlog) lookupOffset(offset uint64) uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
-		return e.segments[i].BaseOffset() > offset
+		return e.segments[i] > offset
 	})
-	return e.segments[idx-1].BaseOffset()
+	return e.segments[idx-1]
 }
 
 func (e *commitlog) readSegment(id uint64) (Segment, error) {
