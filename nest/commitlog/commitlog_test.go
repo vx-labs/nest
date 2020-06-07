@@ -20,6 +20,11 @@ func TestCommitLog(t *testing.T) {
 		require.Equal(t, len(value), n)
 	}
 	require.Equal(t, 5, len(commitlog.segments))
+	t.Run("should close then reopen without error", func(t *testing.T) {
+		require.NoError(t, commitlog.Close())
+		commitlog, err = openLog(datadir, 10)
+		require.NoError(t, err)
+	})
 	t.Run("should allow looking up for offset", func(t *testing.T) {
 		require.Equal(t, uint64(20), commitlog.lookupOffset(27))
 		require.Equal(t, uint64(0), commitlog.lookupOffset(9))

@@ -2,11 +2,18 @@ package commitlog
 
 import (
 	"io"
+	"io/ioutil"
 	"log"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
+)
+
+var (
+	ErrCorruptedLog = errors.New("corrupted commitlog")
 )
 
 type commitlog struct {
@@ -24,8 +31,55 @@ func createLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error)
 	}
 	return l, l.appendSegment(0)
 }
+func openLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error) {
+	l := &commitlog{
+		datadir:               datadir,
+		segmentMaxRecordCount: segmentMaxRecordCount,
+	}
+	files, err := ioutil.ReadDir(datadir)
+	if err != nil {
+		return nil, ErrCorruptedLog
+	}
+	for _, file := range files {
+		if offsetStr := strings.TrimSuffix(file.Name(), ".log"); offsetStr != file.Name() {
+			offset, err := strconv.ParseUint(offsetStr, 10, 64)
+			if err == nil {
+				segment, err := openSegment(datadir, offset, segmentMaxRecordCount, false)
+				if err != nil {
+					return nil, ErrCorruptedLog
+				}
+				l.segments = append(l.segments, offset)
+				if l.activeSegment != nil {
+					if l.activeSegment.BaseOffset() < segment.BaseOffset() {
+						l.activeSegment.Close()
+						l.activeSegment = segment
+					} else {
+						segment.Close()
+					}
+				} else {
+					l.activeSegment = segment
+				}
+			}
+		}
+	}
+	return l, nil
+}
 
+func (e *commitlog) Close() error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.activeSegment != nil {
+		return e.activeSegment.Close()
+	}
+	return nil
+}
 func (e *commitlog) Delete() error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if e.activeSegment != nil {
+		e.activeSegment.Close()
+	}
 	for _, idx := range e.segments {
 		segment, err := openSegment(e.datadir, idx, e.segmentMaxRecordCount, false)
 		if err == nil {
