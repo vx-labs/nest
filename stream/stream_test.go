@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -20,5 +21,46 @@ func TestStream(t *testing.T) {
 	}()
 	s, err := createStream("test", datadir, 5)
 	require.NoError(t, err)
+	value := []byte("test")
+
+	t.Run("write", func(t *testing.T) {
+		for i := 0; i < 500; i++ {
+			n, err := s.Writer([]byte("a")).Write(value)
+			require.NoError(t, err)
+			require.Equal(t, len(value), n)
+		}
+	})
+	t.Run("read from start", func(t *testing.T) {
+		r, err := s.Reader([]byte("a"), 0)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(value))
+		for i := 0; i < 500; i++ {
+			n, err := r.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(value), n)
+			require.Equal(t, value, buf)
+		}
+		n, err := r.Read(buf)
+		require.Equal(t, 0, n)
+		require.Equal(t, io.EOF, err)
+
+	})
+	t.Run("read from offset", func(t *testing.T) {
+		r, err := s.Reader([]byte("a"), 250)
+		require.NoError(t, err)
+
+		buf := make([]byte, len(value))
+		for i := 0; i < 250; i++ {
+			n, err := r.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(value), n)
+			require.Equal(t, value, buf)
+		}
+		n, err := r.Read(buf)
+		require.Equal(t, 0, n)
+		require.Equal(t, io.EOF, err)
+	})
+
 	require.NoError(t, s.Close())
 }
