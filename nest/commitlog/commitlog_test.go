@@ -9,7 +9,7 @@ import (
 
 func TestCommitLog(t *testing.T) {
 	datadir := "/tmp"
-	clog, err := createLog(datadir, 10)
+	clog, err := Create(datadir, 10)
 	require.NoError(t, err)
 	defer clog.Delete()
 	value := []byte("test")
@@ -23,7 +23,7 @@ func TestCommitLog(t *testing.T) {
 	require.Equal(t, 5, len(l.segments))
 	t.Run("should close then reopen without error", func(t *testing.T) {
 		require.NoError(t, clog.Close())
-		clog, err = openLog(datadir, 10)
+		clog, err = Open(datadir, 10)
 		require.NoError(t, err)
 	})
 	t.Run("should allow looking up for offset", func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestCommitLog(t *testing.T) {
 
 func BenchmarkLog(b *testing.B) {
 	datadir := "/tmp"
-	s, err := createLog(datadir, 500)
+	s, err := Create(datadir, 500)
 	require.NoError(b, err)
 	defer s.Delete()
 	value := []byte("test")

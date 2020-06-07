@@ -31,14 +31,14 @@ type CommitLog interface {
 	ReaderFrom(offset uint64) (io.Reader, error)
 }
 
-func createLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+func Create(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
 	return l, l.appendSegment(0)
 }
-func openLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
