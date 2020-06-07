@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"github.com/dgraph-io/badger"
 	"github.com/dgraph-io/badger/pb"
 	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
 	"go.uber.org/zap"
 )
 
@@ -39,6 +41,7 @@ type MessageLog interface {
 type messageLog struct {
 	restorelock sync.RWMutex
 	db          *badger.DB
+	stream      stream.Stream
 }
 
 type compatLogger struct {
@@ -58,8 +61,10 @@ func NewMessageLog(ctx context.Context, datadir string) (MessageLog, error) {
 	if err != nil {
 		return nil, err
 	}
+	s, err := stream.Open("messages", datadir)
 	return &messageLog{
-		db: db,
+		db:     db,
+		stream: s,
 	}, nil
 }
 
@@ -71,6 +76,7 @@ again:
 	}
 }
 func (s *messageLog) Close() error {
+	s.stream.Close()
 	return s.db.Close()
 }
 
@@ -126,6 +132,11 @@ func (s *messageLog) PutRecords(index uint64, timestamp int64, b []*api.Record) 
 		entry := badger.NewEntry(b[idx].Topic, b[idx].Payload)
 		err := tx.SetEntry(entry)
 		if err != nil {
+			return err
+		}
+		err = json.NewEncoder(s.stream.Writer(b[idx].Topic)).Encode(b[idx])
+		if err != nil {
+			log.Print(err)
 			return err
 		}
 	}
