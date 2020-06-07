@@ -24,14 +24,21 @@ type commitlog struct {
 	segmentMaxRecordCount uint64
 }
 
-func createLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error) {
+type CommitLog interface {
+	io.Closer
+	io.Writer
+	Delete() error
+	ReaderFrom(offset uint64) (io.Reader, error)
+}
+
+func createLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitlog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
 	return l, l.appendSegment(0)
 }
-func openLog(datadir string, segmentMaxRecordCount uint64) (*commitlog, error) {
+func openLog(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitlog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,

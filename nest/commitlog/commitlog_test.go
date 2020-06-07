@@ -9,29 +9,31 @@ import (
 
 func TestCommitLog(t *testing.T) {
 	datadir := "/tmp"
-	commitlog, err := createLog(datadir, 10)
+	clog, err := createLog(datadir, 10)
 	require.NoError(t, err)
-	defer commitlog.Delete()
+	defer clog.Delete()
 	value := []byte("test")
 
 	for i := 0; i < 50; i++ {
-		n, err := commitlog.Write(value)
+		n, err := clog.Write(value)
 		require.NoError(t, err)
 		require.Equal(t, len(value), n)
 	}
-	require.Equal(t, 5, len(commitlog.segments))
+	l := clog.(*commitlog)
+	require.Equal(t, 5, len(l.segments))
 	t.Run("should close then reopen without error", func(t *testing.T) {
-		require.NoError(t, commitlog.Close())
-		commitlog, err = openLog(datadir, 10)
+		require.NoError(t, clog.Close())
+		clog, err = openLog(datadir, 10)
 		require.NoError(t, err)
 	})
 	t.Run("should allow looking up for offset", func(t *testing.T) {
-		require.Equal(t, uint64(20), commitlog.lookupOffset(27))
-		require.Equal(t, uint64(0), commitlog.lookupOffset(9))
-		require.Equal(t, uint64(10), commitlog.lookupOffset(10))
+		l := clog.(*commitlog)
+		require.Equal(t, uint64(20), l.lookupOffset(27))
+		require.Equal(t, uint64(0), l.lookupOffset(9))
+		require.Equal(t, uint64(10), l.lookupOffset(10))
 	})
 	t.Run("should allow reading from log", func(t *testing.T) {
-		r, err := commitlog.ReaderFrom(0)
+		r, err := clog.ReaderFrom(0)
 		require.NoError(t, err)
 		buf := make([]byte, len(value))
 		for i := 0; i < 50; i++ {
