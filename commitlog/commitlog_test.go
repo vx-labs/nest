@@ -2,6 +2,7 @@ package commitlog
 
 import (
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,38 @@ func TestCommitLog(t *testing.T) {
 			require.Equal(t, len(value), n)
 		}
 	})
+	t.Run("should allow seeking position in reader", func(t *testing.T) {
+		cReader, err := clog.ReaderFrom(0)
+		require.NoError(t, err)
+		r := cReader.(*commitlogReader)
+		t.Run("start", func(t *testing.T) {
+			r.Seek(1, io.SeekStart)
+			require.Equal(t, uint64(1), r.currentOffset)
+			r.Seek(2, io.SeekStart)
+			require.Equal(t, uint64(2), r.currentOffset)
+			r.Seek(30, io.SeekStart)
+			require.Equal(t, uint64(30), r.currentOffset)
+			r.Seek(0, io.SeekStart)
+			require.Equal(t, uint64(0), r.currentOffset)
+		})
+		t.Run("current", func(t *testing.T) {
+			r.Seek(1, io.SeekCurrent)
+			require.Equal(t, uint64(1), r.currentOffset)
+			r.Seek(1, io.SeekCurrent)
+			require.Equal(t, uint64(2), r.currentOffset)
+			r.Seek(15, io.SeekCurrent)
+			require.Equal(t, uint64(17), r.currentOffset)
+			r.Seek(-1, io.SeekCurrent)
+			require.Equal(t, uint64(16), r.currentOffset)
+		})
+		t.Run("end", func(t *testing.T) {
+			r.Seek(1, io.SeekEnd)
+			require.Equal(t, uint64(50), r.currentOffset)
+			r.Seek(-1, io.SeekEnd)
+			require.Equal(t, uint64(49), r.currentOffset)
+		})
+	})
+
 }
 
 func BenchmarkLog(b *testing.B) {

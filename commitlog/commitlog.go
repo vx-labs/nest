@@ -3,7 +3,6 @@ package commitlog
 import (
 	"io"
 	"io/ioutil"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,7 +27,7 @@ type CommitLog interface {
 	io.Closer
 	io.Writer
 	Delete() error
-	ReaderFrom(offset uint64) (io.Reader, error)
+	ReaderFrom(offset uint64) (io.ReadSeeker, error)
 }
 
 func Create(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
@@ -125,11 +124,17 @@ func (e *commitLog) lookupOffset(offset uint64) uint64 {
 	return e.segments[idx-1]
 }
 
+func (e *commitLog) currentOffset() uint64 {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.activeSegment.CurrentOffset() + e.activeSegment.BaseOffset()
+}
+
 func (e *commitLog) readSegment(id uint64) (Segment, error) {
 	return openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
 }
 
-func (e *commitLog) ReaderFrom(offset uint64) (io.Reader, error) {
+func (e *commitLog) ReaderFrom(offset uint64) (io.ReadSeeker, error) {
 	idx := e.lookupOffset(offset)
 	segment, err := e.readSegment(uint64(idx))
 	if err != nil {
@@ -162,6 +167,38 @@ type commitlogReader struct {
 	currentOffset  uint64
 }
 
+func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.currentSegment != nil {
+		err := c.currentSegment.Close()
+		if err != nil {
+			return 0, err
+		}
+	}
+	currentLogOffset := c.log.currentOffset()
+	var newOffset int64
+	switch whence {
+	case io.SeekStart:
+		newOffset = 0 + offset
+	case io.SeekCurrent:
+		newOffset = int64(c.currentOffset) + offset
+	case io.SeekEnd:
+		newOffset = int64(currentLogOffset) + offset
+	}
+	if newOffset > int64(currentLogOffset) {
+		c.currentOffset = uint64(currentLogOffset)
+	} else if newOffset < 0 {
+		c.currentOffset = 0
+	} else {
+		c.currentOffset = uint64(newOffset)
+	}
+	c.currentReader = nil
+	c.currentSegment = nil
+
+	return int64(c.currentOffset), nil
+}
+
 func (c *commitlogReader) Read(p []byte) (int, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -181,7 +218,6 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 		n, err := c.currentReader.Read(p)
 		if err == io.EOF {
 			c.currentOffset = c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
-			log.Printf("segment %v consumed, moving offset to %d", c.currentSegment.FilePath(), c.currentOffset)
 			err := c.currentSegment.Close()
 			if err != nil {
 				return 0, err
