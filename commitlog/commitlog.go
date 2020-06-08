@@ -193,8 +193,15 @@ func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
 	} else {
 		c.currentOffset = uint64(newOffset)
 	}
-	c.currentReader = nil
-	c.currentSegment = nil
+
+	idx := c.log.lookupOffset(c.currentOffset)
+	segment, err := c.log.readSegment(uint64(idx))
+	if err != nil {
+		return int64(c.currentOffset), err
+	}
+
+	c.currentReader = segment.ReaderFrom(c.currentOffset)
+	c.currentSegment = segment
 
 	return int64(c.currentOffset), nil
 }
@@ -216,8 +223,12 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 		}
 
 		n, err := c.currentReader.Read(p)
+		nextOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
 		if err == io.EOF {
-			c.currentOffset = c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
+			if c.currentOffset == nextOffset {
+				return 0, io.EOF
+			}
+			c.currentOffset = nextOffset
 			err := c.currentSegment.Close()
 			if err != nil {
 				return 0, err

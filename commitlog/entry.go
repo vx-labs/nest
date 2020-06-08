@@ -60,9 +60,6 @@ func readEntry(r io.Reader, buf []byte) (Entry, error) {
 		return nil, err
 	}
 	payloadSize := encoding.Uint64(buf[0:8])
-	if uint64(len(buf)) < payloadSize {
-		return nil, ErrInvalidBufferSize
-	}
 	bodyBuf := make([]byte, payloadSize+uint64(entryHeaderSize))
 	copy(bodyBuf[0:entryHeaderSize], buf)
 	_, err = io.ReadFull(r, bodyBuf[entryHeaderSize:])

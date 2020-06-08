@@ -14,6 +14,14 @@ func TestCommitLog(t *testing.T) {
 	require.NoError(t, err)
 	defer clog.Delete()
 	value := []byte("test")
+	t.Run("should allow reading from empty log", func(t *testing.T) {
+		r, err := clog.ReaderFrom(0)
+		require.NoError(t, err)
+		buf := make([]byte, len(value))
+		n, err := r.Read(buf)
+		require.Equal(t, io.EOF, err)
+		require.Equal(t, 0, n)
+	})
 
 	for i := 0; i < 50; i++ {
 		n, err := clog.Write(value)
