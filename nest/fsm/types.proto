@@ -8,14 +8,8 @@ message PeerLost {
 }
 message StateTransitionSet { repeated StateTransition events = 1; }
 
-message RecordsPut {
-  repeated api.Record Records = 1;
-  int64 Timestamp = 2;
-}
-
 message StateTransition {
   oneof Event {
     PeerLost PeerLost = 1;
-    RecordsPut RecordsPut = 2;
   }
 }

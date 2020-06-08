@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -155,7 +153,6 @@ func main() {
 				TLSPrivateKeyPath:           config.GetString("rpc-tls-private-key-file"),
 			})
 			healthpb.RegisterHealthServer(server, healthServer)
-			api.RegisterNodeServer(server, rpc.NewNodeRPCServer(cancelCh))
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
 				TLSCertificatePath:          config.GetString("rpc-tls-certificate-file"),
@@ -220,8 +217,8 @@ func main() {
 			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
 			raftNode.Serve(server)
 			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
-			waspReceiver := nest.NewWaspReceiver(stateMachine)
-			messagesServer := nest.NewServer(stateMachine, messageLog)
+			waspReceiver := nest.NewWaspReceiver(messageLog)
+			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)
 			waspReceiver.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
@@ -299,7 +296,7 @@ func main() {
 						return
 					}
 				}()
-				raftNode.Run(ctx, peers, join, raft.NodeConfig{AppliedIndex: messageLog.AppliedIndex(time.Now().UnixNano())})
+				raftNode.Run(ctx, peers, join, raft.NodeConfig{})
 			})
 			snapshotter := <-raftNode.Snapshotter()
 			async.Run(ctx, &wg, func(ctx context.Context) {
@@ -309,7 +306,7 @@ func main() {
 					case <-ctx.Done():
 						return
 					case event := <-recordsCh:
-						err := stateMachine.PutRecords(ctx, []*api.Record{event})
+						err := messageLog.PutRecords([]*api.Record{event})
 						if err != nil {
 							nest.L(ctx).Warn("record put failed", zap.Error(err))
 						}
@@ -350,50 +347,7 @@ func main() {
 							if err != nil {
 								nest.L(ctx).Error("failed to decode snapshot", zap.Error(err))
 							}
-							nest.L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-							file, err := ioutil.TempFile("", "sst-incoming.*.nest")
-							if err != nil {
-								nest.L(ctx).Error("failed to create tmp file to receive snapshot", zap.Error(err))
-								break
-							}
-							defer os.Remove(file.Name())
-							defer file.Close()
-							err = mesh.Call(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
-								stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{})
-								if err != nil {
-									return err
-								}
-
-								nest.L(ctx).Debug("streaming snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-								for {
-									chunk, err := stream.Recv()
-									if err == io.EOF {
-										break
-									}
-									if err != nil {
-										return err
-									}
-									nest.L(ctx).Debug("received chunk", zap.Uint64("remote_node", snapshotDescription.Remote))
-									_, err = file.Write(chunk.Chunk)
-									if err != nil {
-										return err
-									}
-								}
-								return file.Sync()
-							})
-							nest.L(ctx).Debug("received snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-							if err != nil {
-								nest.L(ctx).Error("failed to receive snapshot", zap.Error(err))
-								break
-							}
-							file.Seek(0, io.SeekStart)
-							nest.L(ctx).Debug("loading snapshot")
-							err = messageLog.Load(file)
-							if err != nil {
-								nest.L(ctx).Error("failed to load snapshot", zap.Error(err))
-								break
-							}
-							nest.L(ctx).Info("loaded snapshot")
+							nest.L(ctx).Warn("ignored snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
 						} else {
 							stateMachine.Apply(event.Index, event.Payload)
 						}

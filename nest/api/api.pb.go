@@ -150,8 +150,9 @@ func (m *PutRecordsResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_PutRecordsResponse proto.InternalMessageInfo
 
 type GetRecordsRequest struct {
-	FromTimestamp        int64    `protobuf:"varint,1,opt,name=FromTimestamp,proto3" json:"FromTimestamp,omitempty"`
-	Patterns             [][]byte `protobuf:"bytes,2,rep,name=Patterns,proto3" json:"Patterns,omitempty"`
+	Shard                int64    `protobuf:"varint,1,opt,name=Shard,proto3" json:"Shard,omitempty"`
+	FromOffset           uint64   `protobuf:"varint,2,opt,name=FromOffset,proto3" json:"FromOffset,omitempty"`
+	Patterns             [][]byte `protobuf:"bytes,3,rep,name=Patterns,proto3" json:"Patterns,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -182,9 +183,16 @@ func (m *GetRecordsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_GetRecordsRequest proto.InternalMessageInfo
 
-func (m *GetRecordsRequest) GetFromTimestamp() int64 {
+func (m *GetRecordsRequest) GetShard() int64 {
 	if m != nil {
-		return m.FromTimestamp
+		return m.Shard
+	}
+	return 0
+}
+
+func (m *GetRecordsRequest) GetFromOffset() uint64 {
+	if m != nil {
+		return m.FromOffset
 	}
 	return 0
 }
@@ -493,68 +501,6 @@ func (m *LoadResponse) GetTotalBytes() int64 {
 	return 0
 }
 
-type ShutdownRequest struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ShutdownRequest) Reset()         { *m = ShutdownRequest{} }
-func (m *ShutdownRequest) String() string { return proto.CompactTextString(m) }
-func (*ShutdownRequest) ProtoMessage()    {}
-func (*ShutdownRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{11}
-}
-
-func (m *ShutdownRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ShutdownRequest.Unmarshal(m, b)
-}
-func (m *ShutdownRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ShutdownRequest.Marshal(b, m, deterministic)
-}
-func (m *ShutdownRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ShutdownRequest.Merge(m, src)
-}
-func (m *ShutdownRequest) XXX_Size() int {
-	return xxx_messageInfo_ShutdownRequest.Size(m)
-}
-func (m *ShutdownRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ShutdownRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ShutdownRequest proto.InternalMessageInfo
-
-type ShutdownResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ShutdownResponse) Reset()         { *m = ShutdownResponse{} }
-func (m *ShutdownResponse) String() string { return proto.CompactTextString(m) }
-func (*ShutdownResponse) ProtoMessage()    {}
-func (*ShutdownResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_00212fb1f9d3bf1c, []int{12}
-}
-
-func (m *ShutdownResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ShutdownResponse.Unmarshal(m, b)
-}
-func (m *ShutdownResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ShutdownResponse.Marshal(b, m, deterministic)
-}
-func (m *ShutdownResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ShutdownResponse.Merge(m, src)
-}
-func (m *ShutdownResponse) XXX_Size() int {
-	return xxx_messageInfo_ShutdownResponse.Size(m)
-}
-func (m *ShutdownResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ShutdownResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ShutdownResponse proto.InternalMessageInfo
-
 func init() {
 	proto.RegisterType((*Record)(nil), "api.Record")
 	proto.RegisterType((*PutRecordsRequest)(nil), "api.PutRecordsRequest")
@@ -567,45 +513,38 @@ func init() {
 	proto.RegisterType((*SSTResponseChunk)(nil), "api.SSTResponseChunk")
 	proto.RegisterType((*LoadRequest)(nil), "api.LoadRequest")
 	proto.RegisterType((*LoadResponse)(nil), "api.LoadResponse")
-	proto.RegisterType((*ShutdownRequest)(nil), "api.ShutdownRequest")
-	proto.RegisterType((*ShutdownResponse)(nil), "api.ShutdownResponse")
 }
 
 func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
-	// 494 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x54, 0xc1, 0x6e, 0xd3, 0x40,
-	0x10, 0xad, 0xe3, 0xd2, 0x26, 0x13, 0x97, 0x26, 0xa3, 0x00, 0x56, 0x54, 0xa1, 0x68, 0x05, 0xc8,
-	0x12, 0x52, 0x81, 0x20, 0x0e, 0xc0, 0x01, 0x05, 0x22, 0xb8, 0x14, 0x14, 0xad, 0x5d, 0xee, 0x4b,
-	0xbc, 0x6a, 0x2d, 0x6a, 0xaf, 0xd9, 0x5d, 0x0b, 0xf5, 0x93, 0xf9, 0x0b, 0xe4, 0x5d, 0x6f, 0xec,
-	0x24, 0x17, 0x24, 0xa4, 0xde, 0x32, 0x2f, 0x33, 0xcf, 0x6f, 0xde, 0x1b, 0x1b, 0x06, 0xac, 0xcc,
-	0xce, 0x4b, 0x29, 0xb4, 0x40, 0x9f, 0x95, 0x19, 0xf9, 0x0e, 0x47, 0x94, 0xaf, 0x85, 0x4c, 0xf1,
-	0x0c, 0x06, 0x49, 0x96, 0x73, 0xa5, 0x59, 0x5e, 0x86, 0xde, 0xcc, 0x8b, 0x7c, 0xda, 0x02, 0x38,
-	0x81, 0x7b, 0x89, 0x28, 0xb3, 0x75, 0xd8, 0x9b, 0x79, 0x51, 0x40, 0x6d, 0x81, 0x21, 0x1c, 0xaf,
-	0xd8, 0xed, 0x8d, 0x60, 0x69, 0xe8, 0x1b, 0xdc, 0x95, 0xe4, 0x1d, 0x8c, 0x57, 0x95, 0xb6, 0xd4,
-	0x8a, 0xf2, 0x5f, 0x15, 0x57, 0x1a, 0x9f, 0xc2, 0x71, 0x83, 0x84, 0xde, 0xcc, 0x8f, 0x86, 0xf3,
-	0xe1, 0x79, 0x2d, 0xc7, 0x62, 0xd4, 0xfd, 0x47, 0x26, 0x80, 0xdd, 0x59, 0x55, 0x8a, 0x42, 0x71,
-	0x72, 0x09, 0xe3, 0x2f, 0x7c, 0x97, 0xf1, 0x09, 0x9c, 0x7c, 0x96, 0x22, 0xdf, 0x15, 0xbe, 0x0d,
-	0xe2, 0x14, 0xfa, 0x2b, 0xa6, 0x35, 0x97, 0x85, 0x0a, 0x7b, 0x33, 0x3f, 0x0a, 0xe8, 0xa6, 0x26,
-	0xef, 0x01, 0xbb, 0xb4, 0xf6, 0x61, 0xff, 0xaa, 0xf4, 0x0d, 0x0c, 0x97, 0x55, 0x5e, 0x3a, 0x35,
-	0xcf, 0xe0, 0xfe, 0x92, 0x2b, 0x9d, 0x15, 0x4c, 0x67, 0xa2, 0xb8, 0xa4, 0x17, 0x46, 0xce, 0x80,
-	0xee, 0xa0, 0x44, 0x42, 0x60, 0xc7, 0x9a, 0xa7, 0x9d, 0xc1, 0x20, 0xd6, 0x4c, 0x6a, 0x9e, 0x2e,
-	0xb4, 0xb3, 0x7e, 0x03, 0xd4, 0x3b, 0xae, 0xa4, 0xb8, 0x92, 0x5c, 0xa9, 0x8f, 0xb7, 0x9a, 0x2b,
-	0x13, 0x81, 0x4f, 0xb7, 0x41, 0x7c, 0x0c, 0x90, 0x08, 0xcd, 0x6e, 0x6c, 0x8b, 0x6f, 0x5a, 0x3a,
-	0x08, 0x09, 0x00, 0xe2, 0x38, 0x69, 0x94, 0x92, 0x08, 0x46, 0xa6, 0xb2, 0x02, 0x3e, 0x5d, 0x57,
-	0xc5, 0xcf, 0x3a, 0x62, 0xf3, 0xc3, 0x28, 0x08, 0xa8, 0x2d, 0xc8, 0x73, 0x18, 0x5e, 0x08, 0x96,
-	0xba, 0x15, 0x6b, 0xa9, 0xa2, 0x92, 0x6b, 0xde, 0x6e, 0xd7, 0x02, 0xf5, 0x62, 0xb6, 0xf9, 0x0e,
-	0x17, 0x1b, 0xc3, 0x69, 0x7c, 0x5d, 0xe9, 0x54, 0xfc, 0x2e, 0xdc, 0x76, 0x08, 0xa3, 0x16, 0xb2,
-	0x52, 0xe6, 0x7f, 0x7a, 0xd0, 0xff, 0xca, 0x95, 0x62, 0x57, 0x5c, 0xe1, 0x2b, 0xf0, 0xe3, 0x38,
-	0xc1, 0x53, 0x13, 0x6a, 0x6b, 0xcb, 0xf4, 0x41, 0x0b, 0x74, 0x9c, 0x21, 0x07, 0x2f, 0x3d, 0x7c,
-	0x01, 0x87, 0x75, 0x66, 0x38, 0x32, 0x2d, 0x9d, 0xd4, 0xa7, 0xe3, 0x0e, 0xd2, 0xdc, 0x6a, 0x33,
-	0x50, 0x7b, 0xd1, 0x0c, 0x74, 0x3c, 0x6c, 0x06, 0xba, 0x46, 0x99, 0x81, 0x0f, 0x00, 0xed, 0xd9,
-	0xe3, 0x43, 0xd3, 0xb4, 0xf7, 0x0e, 0x4d, 0x1f, 0xed, 0xe1, 0x8e, 0x02, 0x17, 0x00, 0xed, 0x29,
-	0x37, 0x04, 0x7b, 0xaf, 0x4c, 0x43, 0xb0, 0x7f, 0xf3, 0x46, 0xc3, 0x12, 0x4e, 0x62, 0x2d, 0x39,
-	0xcb, 0xff, 0x87, 0x65, 0xbe, 0x80, 0xc3, 0x6f, 0x22, 0xe5, 0xf8, 0x16, 0xfa, 0x2e, 0x07, 0x9c,
-	0x58, 0x6b, 0xb7, 0x93, 0x72, 0x86, 0xef, 0x84, 0x45, 0x0e, 0x7e, 0x1c, 0x99, 0x6f, 0xd4, 0xeb,
-	0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0x09, 0x39, 0xfe, 0xf1, 0xb0, 0x04, 0x00, 0x00,
+	// 412 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x93, 0x4f, 0x8f, 0xd3, 0x30,
+	0x10, 0xc5, 0x37, 0x98, 0xfd, 0x93, 0x49, 0x40, 0xac, 0x55, 0x41, 0xb4, 0x5a, 0xa1, 0xc8, 0x02,
+	0x14, 0x09, 0x69, 0x85, 0x16, 0x71, 0x81, 0x03, 0x5a, 0x58, 0xc1, 0x65, 0x11, 0x91, 0x13, 0xb8,
+	0x9b, 0x66, 0xda, 0x46, 0x34, 0x71, 0xb0, 0x9d, 0x43, 0xbf, 0x04, 0x9f, 0x19, 0xc5, 0x4e, 0x9a,
+	0xd0, 0x5c, 0x38, 0x71, 0xeb, 0xfb, 0x75, 0x3c, 0xf3, 0xc6, 0x7e, 0x01, 0x5f, 0x34, 0xe5, 0x55,
+	0xa3, 0xa4, 0x91, 0x94, 0x88, 0xa6, 0x64, 0xdf, 0xe1, 0x84, 0xe3, 0x52, 0xaa, 0x82, 0x5e, 0x82,
+	0x9f, 0x97, 0x15, 0x6a, 0x23, 0xaa, 0x26, 0xf2, 0x62, 0x2f, 0x21, 0x7c, 0x04, 0x74, 0x01, 0xc7,
+	0xb9, 0x6c, 0xca, 0x65, 0x74, 0x2f, 0xf6, 0x92, 0x90, 0x3b, 0x41, 0x23, 0x38, 0x4d, 0xc5, 0x6e,
+	0x2b, 0x45, 0x11, 0x11, 0xcb, 0x07, 0xc9, 0xde, 0xc2, 0x79, 0xda, 0x1a, 0xd7, 0x5a, 0x73, 0xfc,
+	0xd5, 0xa2, 0x36, 0xf4, 0x39, 0x9c, 0xf6, 0x24, 0xf2, 0x62, 0x92, 0x04, 0xd7, 0xc1, 0x55, 0x67,
+	0xc7, 0x31, 0x3e, 0xfc, 0xc7, 0x16, 0x40, 0xa7, 0x67, 0x75, 0x23, 0x6b, 0x8d, 0x0c, 0xe1, 0xfc,
+	0x33, 0x1e, 0x76, 0x5c, 0xc0, 0x71, 0xb6, 0x11, 0xaa, 0xe8, 0x0d, 0x3b, 0x41, 0x9f, 0x02, 0x7c,
+	0x52, 0xb2, 0xfa, 0xba, 0x5a, 0x69, 0x34, 0xd6, 0xf1, 0x7d, 0x3e, 0x21, 0xf4, 0x02, 0xce, 0x52,
+	0x61, 0x0c, 0xaa, 0x5a, 0x47, 0x24, 0x26, 0x49, 0xc8, 0xf7, 0x9a, 0xbd, 0x03, 0x3a, 0x1d, 0xe3,
+	0x86, 0xff, 0xab, 0xf3, 0x37, 0x10, 0xdc, 0xb6, 0x55, 0x33, 0xb8, 0x7b, 0x01, 0x0f, 0x6f, 0x51,
+	0x9b, 0xb2, 0x16, 0xa6, 0x94, 0xf5, 0x37, 0x7e, 0x67, 0x6d, 0xfa, 0xfc, 0x80, 0x32, 0x05, 0xa1,
+	0x3b, 0xd6, 0x4f, 0xbb, 0x04, 0x3f, 0x33, 0x42, 0x19, 0x2c, 0x6e, 0xcc, 0xf0, 0x14, 0x7b, 0x40,
+	0x9f, 0xc1, 0x83, 0x54, 0xc9, 0xb5, 0x42, 0xad, 0x3f, 0xec, 0x0c, 0x6a, 0xbb, 0x20, 0xe1, 0x7f,
+	0xc3, 0xee, 0x0e, 0x72, 0x69, 0xc4, 0xd6, 0x95, 0x10, 0x5b, 0x32, 0x21, 0x2c, 0x04, 0xc8, 0xb2,
+	0xbc, 0x77, 0xca, 0x12, 0x78, 0x64, 0x95, 0x33, 0xf0, 0x71, 0xd3, 0xd6, 0x3f, 0xbb, 0xbb, 0xb5,
+	0x3f, 0xac, 0x83, 0x90, 0x3b, 0xc1, 0x5e, 0x42, 0x70, 0x27, 0x45, 0x31, 0xac, 0xd8, 0x59, 0x95,
+	0xad, 0x5a, 0xe2, 0xb8, 0xdd, 0x08, 0xba, 0xc5, 0x5c, 0xf1, 0xff, 0x5b, 0xec, 0xfa, 0xb7, 0x07,
+	0x67, 0x5f, 0x50, 0x6b, 0xb1, 0x46, 0x4d, 0xdf, 0x03, 0x8c, 0x51, 0xa2, 0x8f, 0xed, 0xa3, 0xcd,
+	0x72, 0x79, 0xf1, 0x64, 0xc6, 0xfb, 0xcc, 0x1d, 0xd1, 0x1b, 0x80, 0x31, 0x0e, 0x7d, 0x83, 0x59,
+	0x0c, 0xfb, 0x06, 0xf3, 0xdc, 0xb0, 0xa3, 0x57, 0xde, 0x8f, 0x13, 0xfb, 0xb9, 0xbd, 0xfe, 0x13,
+	0x00, 0x00, 0xff, 0xff, 0xec, 0xd2, 0x69, 0xca, 0x7b, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -620,12 +559,8 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type MessagesClient interface {
-	SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Messages_SSTClient, error)
-	Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Messages_DumpClient, error)
-	Load(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (Messages_LoadClient, error)
 	PutRecords(ctx context.Context, in *PutRecordsRequest, opts ...grpc.CallOption) (*PutRecordsResponse, error)
 	GetRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_GetRecordsClient, error)
-	StreamRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_StreamRecordsClient, error)
 }
 
 type messagesClient struct {
@@ -634,102 +569,6 @@ type messagesClient struct {
 
 func NewMessagesClient(cc *grpc.ClientConn) MessagesClient {
 	return &messagesClient{cc}
-}
-
-func (c *messagesClient) SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Messages_SSTClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[0], "/api.Messages/SST", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesSSTClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_SSTClient interface {
-	Recv() (*SSTResponseChunk, error)
-	grpc.ClientStream
-}
-
-type messagesSSTClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesSSTClient) Recv() (*SSTResponseChunk, error) {
-	m := new(SSTResponseChunk)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *messagesClient) Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Messages_DumpClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[1], "/api.Messages/Dump", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesDumpClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_DumpClient interface {
-	Recv() (*DumpResponse, error)
-	grpc.ClientStream
-}
-
-type messagesDumpClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesDumpClient) Recv() (*DumpResponse, error) {
-	m := new(DumpResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *messagesClient) Load(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (Messages_LoadClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[2], "/api.Messages/Load", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesLoadClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_LoadClient interface {
-	Recv() (*LoadResponse, error)
-	grpc.ClientStream
-}
-
-type messagesLoadClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesLoadClient) Recv() (*LoadResponse, error) {
-	m := new(LoadResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func (c *messagesClient) PutRecords(ctx context.Context, in *PutRecordsRequest, opts ...grpc.CallOption) (*PutRecordsResponse, error) {
@@ -742,7 +581,7 @@ func (c *messagesClient) PutRecords(ctx context.Context, in *PutRecordsRequest, 
 }
 
 func (c *messagesClient) GetRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_GetRecordsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[3], "/api.Messages/GetRecords", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[0], "/api.Messages/GetRecords", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -773,136 +612,25 @@ func (x *messagesGetRecordsClient) Recv() (*GetRecordsResponse, error) {
 	return m, nil
 }
 
-func (c *messagesClient) StreamRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_StreamRecordsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[4], "/api.Messages/StreamRecords", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesStreamRecordsClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_StreamRecordsClient interface {
-	Recv() (*GetRecordsResponse, error)
-	grpc.ClientStream
-}
-
-type messagesStreamRecordsClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesStreamRecordsClient) Recv() (*GetRecordsResponse, error) {
-	m := new(GetRecordsResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // MessagesServer is the server API for Messages service.
 type MessagesServer interface {
-	SST(*SSTRequest, Messages_SSTServer) error
-	Dump(*DumpRequest, Messages_DumpServer) error
-	Load(*LoadRequest, Messages_LoadServer) error
 	PutRecords(context.Context, *PutRecordsRequest) (*PutRecordsResponse, error)
 	GetRecords(*GetRecordsRequest, Messages_GetRecordsServer) error
-	StreamRecords(*GetRecordsRequest, Messages_StreamRecordsServer) error
 }
 
 // UnimplementedMessagesServer can be embedded to have forward compatible implementations.
 type UnimplementedMessagesServer struct {
 }
 
-func (*UnimplementedMessagesServer) SST(req *SSTRequest, srv Messages_SSTServer) error {
-	return status.Errorf(codes.Unimplemented, "method SST not implemented")
-}
-func (*UnimplementedMessagesServer) Dump(req *DumpRequest, srv Messages_DumpServer) error {
-	return status.Errorf(codes.Unimplemented, "method Dump not implemented")
-}
-func (*UnimplementedMessagesServer) Load(req *LoadRequest, srv Messages_LoadServer) error {
-	return status.Errorf(codes.Unimplemented, "method Load not implemented")
-}
 func (*UnimplementedMessagesServer) PutRecords(ctx context.Context, req *PutRecordsRequest) (*PutRecordsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutRecords not implemented")
 }
 func (*UnimplementedMessagesServer) GetRecords(req *GetRecordsRequest, srv Messages_GetRecordsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetRecords not implemented")
 }
-func (*UnimplementedMessagesServer) StreamRecords(req *GetRecordsRequest, srv Messages_StreamRecordsServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamRecords not implemented")
-}
 
 func RegisterMessagesServer(s *grpc.Server, srv MessagesServer) {
 	s.RegisterService(&_Messages_serviceDesc, srv)
-}
-
-func _Messages_SST_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(SSTRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).SST(m, &messagesSSTServer{stream})
-}
-
-type Messages_SSTServer interface {
-	Send(*SSTResponseChunk) error
-	grpc.ServerStream
-}
-
-type messagesSSTServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesSSTServer) Send(m *SSTResponseChunk) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Messages_Dump_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(DumpRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).Dump(m, &messagesDumpServer{stream})
-}
-
-type Messages_DumpServer interface {
-	Send(*DumpResponse) error
-	grpc.ServerStream
-}
-
-type messagesDumpServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesDumpServer) Send(m *DumpResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Messages_Load_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(LoadRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).Load(m, &messagesLoadServer{stream})
-}
-
-type Messages_LoadServer interface {
-	Send(*LoadResponse) error
-	grpc.ServerStream
-}
-
-type messagesLoadServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesLoadServer) Send(m *LoadResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _Messages_PutRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -944,27 +672,6 @@ func (x *messagesGetRecordsServer) Send(m *GetRecordsResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Messages_StreamRecords_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetRecordsRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).StreamRecords(m, &messagesStreamRecordsServer{stream})
-}
-
-type Messages_StreamRecordsServer interface {
-	Send(*GetRecordsResponse) error
-	grpc.ServerStream
-}
-
-type messagesStreamRecordsServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesStreamRecordsServer) Send(m *GetRecordsResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
 var _Messages_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "api.Messages",
 	HandlerType: (*MessagesServer)(nil),
@@ -976,102 +683,10 @@ var _Messages_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "SST",
-			Handler:       _Messages_SST_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "Dump",
-			Handler:       _Messages_Dump_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "Load",
-			Handler:       _Messages_Load_Handler,
-			ServerStreams: true,
-		},
-		{
 			StreamName:    "GetRecords",
 			Handler:       _Messages_GetRecords_Handler,
 			ServerStreams: true,
 		},
-		{
-			StreamName:    "StreamRecords",
-			Handler:       _Messages_StreamRecords_Handler,
-			ServerStreams: true,
-		},
 	},
-	Metadata: "api.proto",
-}
-
-// NodeClient is the client API for Node service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type NodeClient interface {
-	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
-}
-
-type nodeClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewNodeClient(cc *grpc.ClientConn) NodeClient {
-	return &nodeClient{cc}
-}
-
-func (c *nodeClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error) {
-	out := new(ShutdownResponse)
-	err := c.cc.Invoke(ctx, "/api.Node/Shutdown", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// NodeServer is the server API for Node service.
-type NodeServer interface {
-	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
-}
-
-// UnimplementedNodeServer can be embedded to have forward compatible implementations.
-type UnimplementedNodeServer struct {
-}
-
-func (*UnimplementedNodeServer) Shutdown(ctx context.Context, req *ShutdownRequest) (*ShutdownResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Shutdown not implemented")
-}
-
-func RegisterNodeServer(s *grpc.Server, srv NodeServer) {
-	s.RegisterService(&_Node_serviceDesc, srv)
-}
-
-func _Node_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ShutdownRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeServer).Shutdown(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.Node/Shutdown",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Shutdown(ctx, req.(*ShutdownRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _Node_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "api.Node",
-	HandlerType: (*NodeServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Shutdown",
-			Handler:    _Node_Shutdown_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "api.proto",
 }
