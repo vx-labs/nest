@@ -4,6 +4,7 @@ package fsm;
 import "github.com/vx-labs/nest/nest/api/api.proto";
 
 message PeerLost { uint64 Peer = 1; }
+message PeerJoined { uint64 Peer = 1; }
 message ShardReplicas {
   uint64 Peer = 1;
   uint64 Offset = 2;
@@ -29,7 +30,8 @@ message StateTransitionSet { repeated StateTransition events = 1; }
 message StateTransition {
   oneof Event {
     PeerLost PeerLost = 1;
-    ShardReplicaProgressed ShardReplicaProgressed = 2;
-    ShardLeadershipAssigned ShardLeadershipAssigned = 3;
+    PeerJoined PeerJoined = 2;
+    ShardReplicaProgressed ShardReplicaProgressed = 3;
+    ShardLeadershipAssigned ShardLeadershipAssigned = 4;
   }
 }

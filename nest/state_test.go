@@ -17,6 +17,30 @@ func emptyState() *state {
 	}
 }
 
+func TestState_PeerJoined(t *testing.T) {
+	s := emptyState()
+	t.Run("should remove a lost peer from replica sets", func(t *testing.T) {
+		require.NoError(t, s.PeerJoined(4))
+		require.Equal(t, 4, len(s.shards[0].Replicas))
+		require.Equal(t, uint64(1), s.shards[0].Replicas[0].Peer)
+		require.Equal(t, uint64(2), s.shards[0].Replicas[1].Peer)
+		require.Equal(t, uint64(3), s.shards[0].Replicas[2].Peer)
+		require.Equal(t, uint64(4), s.shards[0].Replicas[3].Peer)
+
+		require.Equal(t, 4, len(s.shards[1].Replicas))
+		require.Equal(t, uint64(1), s.shards[1].Replicas[0].Peer)
+		require.Equal(t, uint64(2), s.shards[1].Replicas[1].Peer)
+		require.Equal(t, uint64(3), s.shards[1].Replicas[2].Peer)
+		require.Equal(t, uint64(4), s.shards[1].Replicas[3].Peer)
+
+		require.Equal(t, 4, len(s.shards[2].Replicas))
+		require.Equal(t, uint64(1), s.shards[2].Replicas[0].Peer)
+		require.Equal(t, uint64(2), s.shards[2].Replicas[1].Peer)
+		require.Equal(t, uint64(3), s.shards[2].Replicas[2].Peer)
+		require.Equal(t, uint64(4), s.shards[2].Replicas[3].Peer)
+
+	})
+}
 func TestState_PeerLost(t *testing.T) {
 	s := emptyState()
 	t.Run("should remove a lost peer from replica sets", func(t *testing.T) {

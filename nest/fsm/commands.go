@@ -13,6 +13,7 @@ type State interface {
 	ShardReplicaProgressed(id, peer, offset uint64) error
 	ShardLeadershipAssigned(id, newLeader uint64) error
 	PeerLost(peer uint64) error
+	PeerJoined(peer uint64) error
 }
 
 func decode(payload []byte) ([]*StateTransition, error) {
@@ -67,6 +68,17 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 	}
 	return f.commit(ctx, payload)
 }
+func (f *FSM) Join(ctx context.Context) error {
+	payload, err := encode(&StateTransition{Event: &StateTransition_PeerJoined{
+		PeerJoined: &PeerJoined{
+			Peer: f.id,
+		},
+	}})
+	if err != nil {
+		return err
+	}
+	return f.commit(ctx, payload)
+}
 
 func (f *FSM) Apply(index uint64, b []byte) error {
 	events, err := decode(b)
@@ -75,6 +87,9 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	}
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
+		case *StateTransition_PeerJoined:
+			input := event.PeerJoined
+			return f.state.PeerJoined(input.Peer)
 		case *StateTransition_PeerLost:
 			input := event.PeerLost
 			return f.state.PeerLost(input.Peer)

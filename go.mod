@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/armon/go-metrics v0.0.0-20190430140413-ec5e00d3c878 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
-	github.com/dgraph-io/badger v1.6.1
+	github.com/dgraph-io/badger v1.6.1 // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/gogo/protobuf v1.3.1 // indirect
@@ -28,7 +28,7 @@ require (
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tysontate/gommap v0.0.0-20190103205956-899e1273fb5c
-	github.com/vx-labs/wasp v1.0.8
+	github.com/vx-labs/wasp v1.2.0
 	go.etcd.io/etcd v0.0.0-20200319002442-e784ba73c229 // indirect
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20191106202628-ed6320f186d4 // indirect
