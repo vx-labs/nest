@@ -133,6 +133,7 @@ func main() {
 				nest.L(ctx).Info("started pprof", zap.String("pprof_url", fmt.Sprintf("http://%s/", address)))
 			}
 			healthServer := health.NewServer()
+			state := nest.NewState()
 			messageLog, err := nest.NewMessageLog(ctx, config.GetString("data-dir"))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
@@ -216,7 +217,7 @@ func main() {
 			}
 			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
 			raftNode.Serve(server)
-			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
+			stateMachine := fsm.NewFSM(id, state, commandsCh)
 			waspReceiver := nest.NewWaspReceiver(messageLog)
 			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)

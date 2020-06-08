@@ -3,13 +3,33 @@ package fsm;
 
 import "github.com/vx-labs/nest/nest/api/api.proto";
 
-message PeerLost {
+message PeerLost { uint64 Peer = 1; }
+message ShardReplicas {
   uint64 Peer = 1;
+  uint64 Offset = 2;
 }
+message ShardMetadata {
+  uint64 ID = 1;
+  uint64 Leader = 2;
+  repeated ShardReplicas Replicas = 3;
+}
+
+message ShardLeadershipAssigned {
+  uint64 ID = 1;
+  uint64 NewLeader = 2;
+}
+message ShardReplicaProgressed {
+  uint64 ID = 1;
+  uint64 Peer = 2;
+  uint64 Offset = 3;
+}
+
 message StateTransitionSet { repeated StateTransition events = 1; }
 
 message StateTransition {
   oneof Event {
     PeerLost PeerLost = 1;
+    ShardReplicaProgressed ShardReplicaProgressed = 2;
+    ShardLeadershipAssigned ShardLeadershipAssigned = 3;
   }
 }

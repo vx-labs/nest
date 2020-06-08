@@ -10,6 +10,9 @@ import (
 )
 
 type State interface {
+	ShardReplicaProgressed(id, peer, offset uint64) error
+	ShardLeadershipAssigned(id, newLeader uint64) error
+	PeerLost(peer uint64) error
 }
 
 func decode(payload []byte) ([]*StateTransition, error) {
@@ -70,7 +73,18 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	if err != nil {
 		return err
 	}
-	for range events {
+	for _, event := range events {
+		switch event := event.GetEvent().(type) {
+		case *StateTransition_PeerLost:
+			input := event.PeerLost
+			return f.state.PeerLost(input.Peer)
+		case *StateTransition_ShardLeadershipAssigned:
+			input := event.ShardLeadershipAssigned
+			return f.state.ShardLeadershipAssigned(input.ID, input.NewLeader)
+		case *StateTransition_ShardReplicaProgressed:
+			input := event.ShardReplicaProgressed
+			return f.state.ShardReplicaProgressed(input.ID, input.Peer, input.Offset)
+		}
 	}
 	return nil
 }
