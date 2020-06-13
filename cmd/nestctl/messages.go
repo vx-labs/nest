@@ -15,8 +15,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const recordTemplate = `{{ .Timestamp }} {{ .Topic }} {{ .Payload }}`
@@ -66,79 +64,29 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
 			}
-			out := []*api.Record{}
+			tpl := ParseTemplate(config.GetString("format"))
+			count := 0
 			for {
-				record, err := stream.Recv()
+				records, err := stream.Recv()
 				if err != nil {
 					break
 				}
-				out = append(out, record.Records...)
+				for _, elt := range records.Records {
+					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
+					tpl.Execute(cmd.OutOrStdout(), r)
+					count++
+				}
 			}
 			if err != io.EOF && err != nil {
 				l.Error("failed to stream records", zap.Error(err))
 			} else {
-				tpl := ParseTemplate(config.GetString("format"))
-				for _, elt := range out {
-					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
-					tpl.Execute(cmd.OutOrStdout(), r)
-				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "\nPattern %q: %d messages\n\n", strings.Join(args, ", "), len(out))
+				fmt.Fprintf(cmd.ErrOrStderr(), "\nPattern %q: %d messages\n\n", strings.Join(args, ", "), count)
 			}
 		},
 	})
 	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
 	get.Flags().Int64P("from-timestamp", "f", -1, "Fetch records written after the given timestamp. Specify -1 to only fetch the most recent record.")
 	cmd.AddCommand(get)
-
-	stream := (&cobra.Command{
-		Use: "stream",
-		Run: func(cmd *cobra.Command, args []string) {
-			conn, l := mustDial(ctx, cmd, config)
-			patterns := make([][]byte, len(args))
-			for idx := range patterns {
-				patterns[idx] = []byte(args[idx])
-			}
-			tpl := ParseTemplate(config.GetString("format"))
-			fromTimestamp := config.GetInt64("from-timestamp")
-			var lastErr error
-			for {
-				stream, err := api.NewMessagesClient(conn).StreamRecords(ctx, &api.GetRecordsRequest{
-					FromTimestamp: fromTimestamp,
-					Patterns:      patterns,
-				})
-				if err != nil {
-					if lastErr == nil || err.Error() != lastErr.Error() {
-						lastErr = err
-						l.Error("failed to start stream", zap.Error(err))
-					}
-					<-time.After(200 * time.Millisecond)
-				} else {
-					l.Info("stream started", zap.Int64("from-timestamp", fromTimestamp))
-					for {
-						response, err := stream.Recv()
-						if err != nil {
-							l.Warn("stream stopped", zap.Error(err))
-							if s, ok := status.FromError(err); ok {
-								if s.Code() == codes.Unavailable && s.Message() == "transport is closing" {
-									<-time.After(200 * time.Millisecond)
-									break
-								}
-								return
-							}
-						}
-						for _, elt := range response.Records {
-							r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
-							tpl.Execute(cmd.OutOrStdout(), r)
-							fromTimestamp = elt.Timestamp
-						}
-					}
-				}
-			}
-		},
-	})
-	stream.Flags().Int64P("from-timestamp", "f", 0, "Fetch records written after the given timestamp.")
-	stream.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
-	cmd.AddCommand(stream)
 
 	backupCommand := &cobra.Command{
 		Use:  "backup",
@@ -218,7 +166,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				for {
 					defer close(done)
 					_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
-						Records: []*api.Record{&api.Record{Payload: []byte("test"), Topic: []byte("test")}},
+						Records: []*api.Record{&api.Record{Payload: []byte("test"), Topic: []byte("test"), Timestamp: time.Now().UnixNano()}},
 					})
 					if err != nil {
 						if ctx.Err() == context.Canceled {

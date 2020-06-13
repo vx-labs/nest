@@ -45,12 +45,5 @@ service Messages {
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
-  rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
 }
 
-message ShutdownRequest {}
-message ShutdownResponse {}
-
-service Node {
-  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
-}

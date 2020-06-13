@@ -11,8 +11,7 @@ import (
 )
 
 type State interface {
-	PutRecords(uint64, int64, []*api.Record) error
-	SetApplied(int64, uint64) error
+	PutRecords([]*api.Record) error
 }
 
 func decode(payload []byte) ([]*StateTransition, error) {
@@ -70,8 +69,7 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 func (f *FSM) PutRecords(ctx context.Context, records []*api.Record) error {
 	payload, err := encode(&StateTransition{Event: &StateTransition_RecordsPut{
 		RecordsPut: &RecordsPut{
-			Timestamp: time.Now().UnixNano(),
-			Records:   records,
+			Records: records,
 		},
 	}})
 	if err != nil {
@@ -81,7 +79,6 @@ func (f *FSM) PutRecords(ctx context.Context, records []*api.Record) error {
 }
 
 func (f *FSM) Apply(index uint64, b []byte) error {
-	now := time.Now().UnixNano()
 	events, err := decode(b)
 	if err != nil {
 		return err
@@ -89,9 +86,7 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
 		case *StateTransition_RecordsPut:
-			err = f.state.PutRecords(index, event.RecordsPut.Timestamp, event.RecordsPut.Records)
-		default:
-			err = f.state.SetApplied(now, index)
+			err = f.state.PutRecords(event.RecordsPut.Records)
 		}
 		if err != nil {
 			return err

@@ -3,6 +3,8 @@ package commitlog
 import (
 	"io"
 	"io/ioutil"
+	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,16 +31,29 @@ type CommitLog interface {
 	Delete() error
 	ReaderFrom(offset uint64) (io.ReadSeeker, error)
 	Offset() uint64
+	Datadir() string
 }
 
-func Create(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+	if fileExists(path.Join(datadir, "0.log")) {
+		return open(datadir, segmentMaxRecordCount)
+	}
+	err := os.MkdirAll(datadir, 0750)
+	if err != nil {
+		return nil, err
+	}
+	return create(datadir, segmentMaxRecordCount)
+}
+
+func create(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
 	return l, l.appendSegment(0)
 }
-func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+
+func open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 	l := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
@@ -86,6 +101,9 @@ func (e *commitLog) Close() error {
 		return e.activeSegment.Close()
 	}
 	return nil
+}
+func (e *commitLog) Datadir() string {
+	return e.datadir
 }
 func (e *commitLog) Delete() error {
 	e.mtx.Lock()

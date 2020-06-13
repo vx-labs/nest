@@ -10,7 +10,6 @@ message StateTransitionSet { repeated StateTransition events = 1; }
 
 message RecordsPut {
   repeated api.Record Records = 1;
-  int64 Timestamp = 2;
 }
 
 message StateTransition {

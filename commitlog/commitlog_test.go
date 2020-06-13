@@ -10,7 +10,7 @@ import (
 
 func TestCommitLog(t *testing.T) {
 	datadir := "/tmp"
-	clog, err := Create(datadir, 10)
+	clog, err := create(datadir, 10)
 	require.NoError(t, err)
 	defer clog.Delete()
 	value := []byte("test")
@@ -87,7 +87,7 @@ func TestCommitLog(t *testing.T) {
 
 func BenchmarkLog(b *testing.B) {
 	datadir := "/tmp"
-	s, err := Create(datadir, 500)
+	s, err := create(datadir, 500)
 	require.NoError(b, err)
 	defer s.Delete()
 	value := []byte("test")
