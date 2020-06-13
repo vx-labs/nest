@@ -27,7 +27,9 @@ message DumpResponse {
   int64 ProgressBytes = 2;
   int64 TotalBytes = 3;
 }
-message SSTRequest {};
+message SSTRequest {
+  uint64 ToOffset = 1;
+};
 message SSTResponseChunk {
   bytes Chunk = 1;
 };

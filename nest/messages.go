@@ -20,10 +20,10 @@ var (
 	encoding                  = binary.BigEndian
 )
 
-type RecordConsumer func(topic []byte, ts int64, payload []byte) error
+type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
 type MessageLog interface {
 	io.Closer
-	Dump(w io.Writer) error
+	Dump(w io.Writer, lastOffset uint64, whence int) error
 	Load(w io.Reader) error
 	PutRecords(b []*api.Record) error
 	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
@@ -103,11 +103,25 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-func (s *messageLog) Dump(sink io.Writer) error {
+func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
 	encoder := json.NewEncoder(sink)
-	_, err := s.GetRecords(nil, 0, func(topic []byte, ts int64, payload []byte) error {
+	r, err := s.log.ReaderFrom(0)
+	if err != nil {
+		return err
+	}
+	limit, err := r.Seek(int64(lastOffset), whence)
+	if err != nil {
+		return err
+	}
+	_, err = s.GetRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+		if int64(offset) >= limit {
+			return io.EOF
+		}
 		return encoder.Encode(api.Record{Timestamp: ts, Payload: payload, Topic: topic})
 	})
+	if err == io.EOF {
+		return nil
+	}
 	return err
 }
 func (s *messageLog) Load(source io.Reader) error {
@@ -168,7 +182,7 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 		if err != nil {
 			return current, err
 		}
-		err = f(record.Topic, record.Timestamp, record.Payload)
+		err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
 		if err != nil {
 			return current, err
 		}

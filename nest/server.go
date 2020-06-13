@@ -102,7 +102,7 @@ func (s *server) Dump(in *api.DumpRequest, stream api.Messages_DumpServer) error
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to open DestinationURL: %v", err)
 	}
-	return s.state.Dump(w)
+	return s.state.Dump(w, 0, io.SeekEnd)
 }
 
 func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
@@ -112,7 +112,7 @@ func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
 	}
 	defer os.Remove(file.Name())
 	defer file.Close()
-	err = s.state.Dump(file)
+	err = s.state.Dump(file, in.ToOffset, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRecordsServer) error {
-	_, err := s.state.GetRecords(in.Patterns, in.FromTimestamp, func(topic []byte, ts int64, payload []byte) error {
+	_, err := s.state.GetRecords(in.Patterns, in.FromTimestamp, func(_ uint64, topic []byte, ts int64, payload []byte) error {
 		return stream.Send(&api.GetRecordsResponse{
 			Records: []*api.Record{
 				&api.Record{
