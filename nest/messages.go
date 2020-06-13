@@ -246,9 +246,20 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 		if err != nil {
 			return current, err
 		}
-		err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
-		if err != nil {
-			return current, err
+		if len(patterns) > 0 {
+			for _, pattern := range patterns {
+				if match(pattern, record.Topic) {
+					err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
+					if err != nil {
+						return current, err
+					}
+				}
+			}
+		} else {
+			err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
+			if err != nil {
+				return current, err
+			}
 		}
 		current++
 	}
