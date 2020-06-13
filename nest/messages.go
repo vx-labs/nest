@@ -2,17 +2,16 @@ package nest
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
-	"errors"
+	"encoding/json"
 	"io"
-	"log"
+	"os"
 	"path"
 	"sync"
-	"time"
 
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/pb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/tysontate/gommap"
+	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 )
@@ -23,22 +22,25 @@ var (
 	encoding                  = binary.BigEndian
 )
 
-type RecordConsumer func(topic []byte, ts int64, payload []byte) error
+type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
 type MessageLog interface {
 	io.Closer
-	Dump(w io.Writer) error
+	Dump(w io.Writer, lastOffset uint64, whence int) error
 	Load(w io.Reader) error
-	SetApplied(timestamp int64, index uint64) error
-	AppliedIndex(timestamp int64) uint64
-	PutRecords(index uint64, timestamp int64, b []*api.Record) error
-	GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error)
-	Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error
-	GC()
+	LoadState(uint64, io.Reader) error
+	PutRecords(stateOffset uint64, b []*api.Record) error
+	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
+	CurrentStateOffset() uint64
+	CurrentOffset() uint64
+	SetCurrentStateOffset(v uint64)
 }
 
 type messageLog struct {
-	restorelock sync.RWMutex
-	db          *badger.DB
+	restorelock   sync.RWMutex
+	datadir       string
+	stateOffset   gommap.MMap
+	stateOffsetFd *os.File
+	log           commitlog.CommitLog
 }
 
 type compatLogger struct {
@@ -50,86 +52,80 @@ func (c *compatLogger) Infof(string, ...interface{})    {}
 func (c *compatLogger) Warningf(string, ...interface{}) {}
 func (c *compatLogger) Errorf(string, ...interface{})   {}
 
-func NewMessageLog(ctx context.Context, datadir string) (MessageLog, error) {
-	opts := badger.DefaultOptions(path.Join(datadir, "badger"))
-	opts.Logger = &compatLogger{l: L(ctx)}
-	opts.NumVersionsToKeep = -1
-	db, err := badger.OpenManaged(opts)
+func NewMessageLog(datadir string) (MessageLog, error) {
+
+	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
 	if err != nil {
 		return nil, err
 	}
+	statePath := path.Join(datadir, "messages.json")
+	var fd *os.File
+
+	if _, err := os.Stat(statePath); os.IsNotExist(err) {
+		fd, err = os.OpenFile(statePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0650)
+		if err != nil {
+			return nil, err
+		}
+		err = fd.Truncate(8)
+		if err != nil {
+			fd.Close()
+			os.Remove(statePath)
+			return nil, err
+		}
+	} else {
+		fd, err = os.OpenFile(statePath, os.O_RDWR, 0650)
+		if err != nil {
+			return nil, err
+		}
+	}
+	mmapedData, err := gommap.Map(fd.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED)
+	if err != nil {
+		return nil, err
+	}
+
 	return &messageLog{
-		db: db,
+		datadir:       datadir,
+		log:           log,
+		stateOffset:   mmapedData,
+		stateOffsetFd: fd,
 	}, nil
 }
 
-func (s *messageLog) GC() {
-again:
-	err := s.db.RunValueLogGC(0.7)
-	if err == nil {
-		goto again
-	}
-}
 func (s *messageLog) Close() error {
-	return s.db.Close()
+	s.stateOffset.UnsafeUnmap()
+	s.stateOffsetFd.Close()
+	return s.log.Close()
 }
 
-func int64ToBytes(u int64) []byte {
-	return uint64ToBytes(uint64(u))
+func (s *messageLog) CurrentOffset() uint64 {
+	return s.log.Offset()
 }
-func uint64ToBytes(u uint64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, u)
-	return buf
+func (s *messageLog) SetCurrentStateOffset(v uint64) {
+	binary.BigEndian.PutUint64(s.stateOffset, v)
 }
-func bytesToInt64(b []byte) int64 {
-	return int64(bytesToUint64(b))
-}
-func bytesToUint64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
+func (s *messageLog) CurrentStateOffset() uint64 {
+	return binary.BigEndian.Uint64(s.stateOffset)
 }
 
-func (s *messageLog) AppliedIndex(timestamp int64) uint64 {
+func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
-	ts := uint64(timestamp)
-	tx := s.db.NewTransactionAt(ts, false)
-	defer tx.Discard()
-	return s.appliedIndex(tx)
-}
-
-func (s *messageLog) appliedIndex(tx *badger.Txn) uint64 {
-	item, err := tx.Get(appliedIndexKey)
-	if err != nil {
-		return 0
-	}
-	value, err := item.ValueCopy(nil)
-	if err != nil {
-		return 0
-	}
-	return bytesToUint64(value)
-}
-func (s *messageLog) PutRecords(index uint64, timestamp int64, b []*api.Record) error {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-	ts := uint64(timestamp)
-	tx := s.db.NewTransactionAt(ts, true)
-	defer tx.Discard()
-	if s.appliedIndex(tx) > index {
-		return errors.New("outdated index")
-	}
-	err := tx.Set(appliedIndexKey, uint64ToBytes(index))
-	if err != nil {
-		return err
-	}
-	for idx := range b {
-		entry := badger.NewEntry(b[idx].Topic, b[idx].Payload)
-		err := tx.SetEntry(entry)
+	payloads := make([][]byte, len(b))
+	var err error
+	for idx, record := range b {
+		payloads[idx], err = proto.Marshal(record)
 		if err != nil {
 			return err
 		}
 	}
-	return tx.CommitAt(ts, nil)
+	for _, payload := range payloads {
+		_, err := s.log.Write(payload)
+		if err != nil {
+			return err
+		}
+	}
+	s.SetCurrentStateOffset(stateOffset)
+	return nil
 }
 
 func cut(t []byte) ([]byte, string) {
@@ -157,129 +153,114 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-func (s *messageLog) Dump(sink io.Writer) error {
-	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
-	_, err := stream.Backup(sink, 0)
+func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
+	encoder := json.NewEncoder(sink)
+	r, err := s.log.ReaderFrom(0)
+	if err != nil {
+		return err
+	}
+	limit, err := r.Seek(int64(lastOffset), whence)
+	if err != nil {
+		return err
+	}
+	_, err = s.GetRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+		if int64(offset) >= limit {
+			return io.EOF
+		}
+		return encoder.Encode(api.Record{Timestamp: ts, Payload: payload, Topic: topic})
+	})
+	if err == io.EOF {
+		return nil
+	}
 	return err
+}
+func (s *messageLog) LoadState(offset uint64, source io.Reader) error {
+	s.restorelock.Lock()
+	defer s.restorelock.Unlock()
+
+	err := s.load(source)
+	if err != nil {
+		return err
+	}
+	s.SetCurrentStateOffset(offset)
+	return nil
 }
 func (s *messageLog) Load(source io.Reader) error {
 	s.restorelock.Lock()
 	defer s.restorelock.Unlock()
-	return s.db.Load(source, 15)
+	return s.load(source)
 }
-func (s *messageLog) SetApplied(timestamp int64, index uint64) error {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-	ts := uint64(timestamp)
-	tx := s.db.NewTransactionAt(ts, true)
-	defer tx.Discard()
-	if s.appliedIndex(tx) > index {
-		return errors.New("outdated index")
+func (s *messageLog) load(source io.Reader) error {
+	err := s.log.Delete()
+	if err != nil {
+		return err
 	}
-	tx.Set(appliedIndexKey, uint64ToBytes(index))
-	return tx.CommitAt(ts, nil)
+	log, err := commitlog.Open(s.log.Datadir(), 250)
+	if err != nil {
+		return err
+	}
+	s.log = log
+	dec := json.NewDecoder(source)
+	record := &api.Record{}
+	for {
+		err := dec.Decode(&record)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		payload, err := proto.Marshal(record)
+		if err != nil {
+			return err
+		}
+		_, err = s.log.Write(payload)
+		if err != nil {
+			return err
+		}
+	}
 }
-func (s *messageLog) GetRecords(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) (int64, error) {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-	stream := s.db.NewStreamAt(uint64(time.Now().UnixNano()))
-	stream.ChooseKey = func(item *badger.Item) bool {
-		if bytes.Equal(item.Key(), appliedIndexKey) {
-			return false
-		}
-		matched := len(patterns) == 0
-		if !matched {
-			for _, pattern := range patterns {
-				if match(pattern, item.Key()) {
-					return true
-				}
-			}
-		}
-		return matched
-	}
-	stream.KeyToList = func(key []byte, iterator *badger.Iterator) (*pb.KVList, error) {
-		list := &pb.KVList{}
-		for ; iterator.Valid(); iterator.Next() {
-			item := iterator.Item()
-			if item.IsDeletedOrExpired() {
-				break
-			}
-			valCopy, err := item.ValueCopy(nil)
-			if err != nil {
-				return nil, err
-			}
-			if fromTimestamp == -1 || item.Version() > uint64(fromTimestamp) {
-				kv := &pb.KV{
-					Key:       item.KeyCopy(nil),
-					Value:     valCopy,
-					UserMeta:  []byte{item.UserMeta()},
-					Version:   item.Version(),
-					ExpiresAt: item.ExpiresAt(),
-				}
 
-				list.Kv = append(list.Kv, kv)
-				if fromTimestamp == -1 {
-					break
-				}
-			}
-		}
-		return list, nil
+func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+	r, err := s.log.ReaderFrom(0)
+	if err != nil {
+		return fromOffset, err
 	}
-	var lastRecord int64 = fromTimestamp
-	stream.Send = func(list *pb.KVList) error {
-		length := len(list.Kv) - 1
-		for idx := range list.Kv {
-			kv := list.Kv[length-idx]
-			record := &api.Record{
-				Timestamp: int64(kv.Version),
-				Payload:   kv.Value,
-				Topic:     kv.Key,
-			}
-			matched := len(patterns) == 0
-			if !matched {
-				for _, pattern := range patterns {
-					if match(pattern, record.Topic) {
-						matched = true
-						break
+	current, err := r.Seek(fromOffset, io.SeekStart)
+	if err != nil {
+		return current, err
+	}
+	buf := make([]byte, 200*1000*1000)
+	for {
+		n, err := r.Read(buf)
+		if err == io.EOF {
+			return current, nil
+		}
+		if err != nil {
+			return current, err
+		}
+		record := &api.Record{}
+		err = proto.Unmarshal(buf[:n], record)
+		if err != nil {
+			return current, err
+		}
+		if len(patterns) > 0 {
+			for _, pattern := range patterns {
+				if match(pattern, record.Topic) {
+					err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
+					if err != nil {
+						return current, err
 					}
 				}
 			}
-			if matched {
-				err := f(record.Topic, record.Timestamp, record.Payload)
-				if err != nil {
-					return err
-				}
-			}
-			lastRecord = record.Timestamp
-		}
-		return nil
-	}
-	err := stream.Orchestrate(ctx)
-	return lastRecord, err
-}
-func (s *messageLog) Consume(ctx context.Context, patterns [][]byte, fromTimestamp int64, f RecordConsumer) error {
-
-	notifications := make(chan struct{}, 1)
-
-	notifications <- struct{}{}
-	defer close(notifications)
-
-	go func() {
-		var lastSeen int64 = fromTimestamp
-		var err error
-		for range notifications {
-			lastSeen, err = s.GetRecords(ctx, patterns, lastSeen, f)
+		} else {
+			err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
 			if err != nil {
-				log.Print(err) // TODO: use logger
+				return current, err
 			}
 		}
-	}()
-
-	return s.db.Subscribe(ctx, func(list *pb.KVList) error {
-		select {
-		case notifications <- struct{}{}:
-		default:
-		}
-		return nil
-	}, nil)
+		current++
+	}
 }

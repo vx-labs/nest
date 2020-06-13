@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -24,18 +22,18 @@ import (
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/nest/async"
 	"github.com/vx-labs/nest/nest/fsm"
-	"github.com/vx-labs/nest/nest/rpc"
 	"github.com/vx-labs/wasp/cluster"
-	"github.com/vx-labs/wasp/cluster/membership"
 	"github.com/vx-labs/wasp/cluster/raft"
+	"github.com/vx-labs/wasp/rpc"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type Snapshot struct {
-	Remote uint64 `json:"remote"`
+	Remote         uint64 `json:"remote,omitempty"`
+	MessagesOffset uint64 `json:"messages_offset,omitempty"`
+	StateOffset    uint64 `json:"state_offset,omitempty"`
 }
 
 func localPrivateHost() string {
@@ -135,13 +133,8 @@ func main() {
 				nest.L(ctx).Info("started pprof", zap.String("pprof_url", fmt.Sprintf("http://%s/", address)))
 			}
 			healthServer := health.NewServer()
-			messageLog, err := nest.NewMessageLog(ctx, config.GetString("data-dir"))
-			if err != nil {
-				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
-			}
 			healthServer.Resume()
 			wg := sync.WaitGroup{}
-			stateLoaded := make(chan struct{})
 			cancelCh := make(chan struct{})
 			commandsCh := make(chan raft.Command)
 			recordsCh := make(chan *api.Record, 20)
@@ -155,7 +148,6 @@ func main() {
 				TLSPrivateKeyPath:           config.GetString("rpc-tls-private-key-file"),
 			})
 			healthpb.RegisterHealthServer(server, healthServer)
-			api.RegisterNodeServer(server, rpc.NewNodeRPCServer(cancelCh))
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
 				TLSCertificatePath:          config.GetString("rpc-tls-certificate-file"),
@@ -166,21 +158,7 @@ func main() {
 			if err != nil {
 				nest.L(ctx).Fatal("cluster listener failed to start", zap.Error(err))
 			}
-			mesh := membership.New(
-				id,
-				"nest",
-				config.GetInt("serf-port"),
-				config.GetString("serf-advertized-address"),
-				config.GetInt("serf-advertized-port"),
-				config.GetInt("raft-advertized-port"),
-				rpcDialer,
-				nest.L(ctx),
-			)
-			rpcAddress := fmt.Sprintf("%s:%d", config.GetString("raft-advertized-address"), config.GetInt("raft-advertized-port"))
-			mesh.UpdateMetadata(membership.EncodeMD(id,
-				"nest",
-				rpcAddress,
-			))
+
 			joinList := config.GetStringSlice("join-node")
 			if config.GetBool("consul-join") {
 				discoveryStarted := time.Now()
@@ -190,36 +168,59 @@ func main() {
 				if err != nil {
 					nest.L(ctx).Fatal("failed to find other peers on Consul", zap.Error(err))
 				}
-				nest.L(ctx).Info("discovered nodes using Consul",
+				nest.L(ctx).Debug("discovered nodes using Consul",
 					zap.Duration("consul_discovery_duration", time.Since(discoveryStarted)), zap.Int("node_count", len(consulJoinList)))
 				joinList = append(joinList, consulJoinList...)
 			}
-			if len(joinList) > 0 {
-				joinStarted := time.Now()
-				retryTicker := time.NewTicker(3 * time.Second)
-				for {
-					err = mesh.Join(joinList)
-					if err != nil {
-						nest.L(ctx).Warn("failed to join gossip mesh", zap.Error(err))
-					} else {
-						break
-					}
-					<-retryTicker.C
-				}
-				retryTicker.Stop()
-				nest.L(ctx).Info("joined gossip mesh",
-					zap.Duration("gossip_join_duration", time.Since(joinStarted)), zap.Strings("gossip_node_list", joinList))
+			messageLog, err := nest.NewMessageLog(config.GetString("data-dir"))
+			if err != nil {
+				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
-			raftConfig := raft.Config{
-				NodeID:  id,
-				DataDir: config.GetString("data-dir"),
-				GetSnapshot: func() ([]byte, error) {
-					return json.Marshal(Snapshot{Remote: id})
-				},
-			}
-			raftNode := raft.NewNode(raftConfig, mesh, nest.L(ctx))
-			raftNode.Serve(server)
+
 			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
+			clusterNode := cluster.NewNode(cluster.NodeConfig{
+				ID:            id,
+				ServiceName:   "wasp",
+				DataDirectory: config.GetString("data-dir"),
+				GossipConfig: cluster.GossipConfig{
+					JoinList: joinList,
+					Network: cluster.NetworkConfig{
+						AdvertizedHost: config.GetString("serf-advertized-address"),
+						AdvertizedPort: config.GetInt("serf-advertized-port"),
+						ListeningPort:  config.GetInt("serf-port"),
+					},
+				},
+				RaftConfig: cluster.RaftConfig{
+					ExpectedNodeCount: config.GetInt("raft-bootstrap-expect"),
+					Network: cluster.NetworkConfig{
+						AdvertizedHost: config.GetString("raft-advertized-address"),
+						AdvertizedPort: config.GetInt("raft-advertized-port"),
+						ListeningPort:  config.GetInt("raft-port"),
+					},
+					AppliedIndex: messageLog.CurrentStateOffset(),
+				},
+				GetStateSnapshot: func() ([]byte, error) {
+					return json.Marshal(Snapshot{
+						Remote:         id,
+						StateOffset:    messageLog.CurrentStateOffset(),
+						MessagesOffset: messageLog.CurrentOffset(),
+					})
+				},
+			}, rpcDialer, server, nest.L(ctx))
+			snapshotter := <-clusterNode.Snapshotter()
+			snapshot, err := snapshotter.Load()
+			if err != nil {
+				nest.L(ctx).Debug("failed to get state snapshot", zap.Error(err))
+			} else {
+				err := handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
+				if err != nil {
+					nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
+				}
+			}
+			async.Run(ctx, &wg, func(ctx context.Context) {
+				defer nest.L(ctx).Debug("cluster node stopped")
+				clusterNode.Run(ctx)
+			})
 			waspReceiver := nest.NewWaspReceiver(stateMachine)
 			messagesServer := nest.NewServer(stateMachine, messageLog)
 			messagesServer.Serve(server)
@@ -232,76 +233,6 @@ func main() {
 					nest.L(ctx).Fatal("cluster listener crashed", zap.Error(err))
 				}
 			})
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Info("raft node stopped")
-				join := false
-				peers := raft.Peers{}
-				if expectedCount := config.GetInt("raft-bootstrap-expect"); expectedCount > 1 {
-					nest.L(ctx).Debug("waiting for nodes to be discovered", zap.Int("expected_node_count", expectedCount))
-					peers, err = mesh.WaitForNodes(ctx, "nest", expectedCount, cluster.RaftContext{
-						ID:      id,
-						Address: rpcAddress,
-					}, rpcDialer)
-					if err != nil {
-						if err == membership.ErrExistingClusterFound {
-							nest.L(ctx).Info("discovered existing raft cluster")
-							join = true
-						} else {
-							nest.L(ctx).Fatal("failed to discover nodes on gossip mesh", zap.Error(err))
-						}
-					}
-					nest.L(ctx).Info("discovered nodes on gossip mesh", zap.Int("discovered_node_count", len(peers)))
-				} else {
-					nest.L(ctx).Info("skipping raft node discovery: expected node count is below 1", zap.Int("expected_node_count", expectedCount))
-				}
-				if join {
-					nest.L(ctx).Info("joining raft cluster", zap.Array("raft_peers", peers))
-				} else {
-					nest.L(ctx).Info("bootstraping raft cluster", zap.Array("raft_peers", peers))
-				}
-				go func() {
-					defer close(stateLoaded)
-					select {
-					case <-raftNode.Ready():
-						if join && raftNode.IsRemovedFromCluster() {
-							nest.L(ctx).Debug("local node is not a cluster member, will attempt join")
-							ticker := time.NewTicker(1 * time.Second)
-							defer ticker.Stop()
-							for {
-								if raftNode.IsLeader() {
-									return
-								}
-								for _, peer := range peers {
-									ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-									err := mesh.Call(peer.ID, func(c *grpc.ClientConn) error {
-										_, err = cluster.NewRaftClient(c).JoinCluster(ctx, &cluster.RaftContext{
-											ID:      id,
-											Address: rpcAddress,
-										})
-										return err
-									})
-									cancel()
-									if err != nil {
-										nest.L(ctx).Debug("failed to join raft cluster, retrying", zap.Error(err))
-									} else {
-										nest.L(ctx).Info("joined cluster")
-										return
-									}
-								}
-								select {
-								case <-ticker.C:
-								case <-ctx.Done():
-									return
-								}
-							}
-						}
-					case <-ctx.Done():
-						return
-					}
-				}()
-				raftNode.Run(ctx, peers, join, raft.NodeConfig{AppliedIndex: messageLog.AppliedIndex(time.Now().UnixNano())})
-			})
-			snapshotter := <-raftNode.Snapshotter()
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("records publisher stopped")
 				for {
@@ -323,7 +254,7 @@ func main() {
 					case <-ctx.Done():
 						return
 					case event := <-commandsCh:
-						err := raftNode.Apply(event.Ctx, event.Payload)
+						err := clusterNode.Apply(event.Ctx, event.Payload)
 						select {
 						case <-ctx.Done():
 						case <-event.Ctx.Done():
@@ -339,68 +270,23 @@ func main() {
 					select {
 					case <-ctx.Done():
 						return
-					case event := <-raftNode.Commits():
+					case event := <-clusterNode.Commits():
 						if event.Payload == nil {
 							snapshot, err := snapshotter.Load()
 							if err != nil {
 								nest.L(ctx).Error("failed to load", zap.Error(err))
 							}
-							snapshotDescription := Snapshot{}
-							err = json.Unmarshal(snapshot.Data, &snapshotDescription)
+							err = handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
 							if err != nil {
-								nest.L(ctx).Error("failed to decode snapshot", zap.Error(err))
+								nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
 							}
-							nest.L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-							file, err := ioutil.TempFile("", "sst-incoming.*.nest")
-							if err != nil {
-								nest.L(ctx).Error("failed to create tmp file to receive snapshot", zap.Error(err))
-								break
-							}
-							defer os.Remove(file.Name())
-							defer file.Close()
-							err = mesh.Call(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
-								stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{})
-								if err != nil {
-									return err
-								}
-
-								nest.L(ctx).Debug("streaming snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-								for {
-									chunk, err := stream.Recv()
-									if err == io.EOF {
-										break
-									}
-									if err != nil {
-										return err
-									}
-									nest.L(ctx).Debug("received chunk", zap.Uint64("remote_node", snapshotDescription.Remote))
-									_, err = file.Write(chunk.Chunk)
-									if err != nil {
-										return err
-									}
-								}
-								return file.Sync()
-							})
-							nest.L(ctx).Debug("received snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
-							if err != nil {
-								nest.L(ctx).Error("failed to receive snapshot", zap.Error(err))
-								break
-							}
-							file.Seek(0, io.SeekStart)
-							nest.L(ctx).Debug("loading snapshot")
-							err = messageLog.Load(file)
-							if err != nil {
-								nest.L(ctx).Error("failed to load snapshot", zap.Error(err))
-								break
-							}
-							nest.L(ctx).Info("loaded snapshot")
 						} else {
 							stateMachine.Apply(event.Index, event.Payload)
 						}
 					}
 				}
 			})
-			<-stateLoaded
+			<-clusterNode.Ready()
 			if brokerURL := config.GetString("mqtt-collector-broker-url"); brokerURL != "" {
 				mqttCollector, err := nest.MQTTCollector(brokerURL,
 					config.GetString("mqtt-collector-broker-username"),
@@ -439,11 +325,11 @@ func main() {
 			} else {
 				nest.L(ctx).Debug("state machine stopped")
 			}
-			err = raftNode.Leave(ctx)
+			err = clusterNode.Shutdown()
 			if err != nil {
-				nest.L(ctx).Error("failed to leave raft cluster", zap.Error(err))
+				nest.L(ctx).Error("failed to leave cluster", zap.Error(err))
 			} else {
-				nest.L(ctx).Debug("raft cluster left")
+				nest.L(ctx).Debug("cluster left")
 			}
 			healthServer.Shutdown()
 			nest.L(ctx).Debug("health server stopped")
@@ -458,8 +344,6 @@ func main() {
 			cancel()
 			wg.Wait()
 			nest.L(ctx).Debug("asynchronous operations stopped")
-			mesh.Shutdown()
-			nest.L(ctx).Debug("mesh stopped")
 			messageLog.Close()
 			nest.L(ctx).Debug("message log closed")
 			nest.L(ctx).Info("nest successfully stopped")

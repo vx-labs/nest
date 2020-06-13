@@ -27,7 +27,9 @@ message DumpResponse {
   int64 ProgressBytes = 2;
   int64 TotalBytes = 3;
 }
-message SSTRequest {};
+message SSTRequest {
+  uint64 ToOffset = 1;
+};
 message SSTResponseChunk {
   bytes Chunk = 1;
 };
@@ -45,12 +47,5 @@ service Messages {
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
-  rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
 }
 
-message ShutdownRequest {}
-message ShutdownResponse {}
-
-service Node {
-  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
-}

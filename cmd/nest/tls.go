@@ -3,13 +3,15 @@ package main
 import (
 	"crypto/rsa"
 	"crypto/x509"
+
+	"github.com/vx-labs/wasp/rpc"
+
 	"encoding/pem"
 	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/vx-labs/nest/nest/rpc"
 )
 
 func TLSHelper(config *viper.Viper) *cobra.Command {
