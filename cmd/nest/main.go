@@ -31,7 +31,9 @@ import (
 )
 
 type Snapshot struct {
-	Remote uint64 `json:"remote"`
+	Remote         uint64 `json:"remote,omitempty"`
+	MessagesOffset uint64 `json:"messages_offset,omitempty"`
+	StateOffset    uint64 `json:"state_offset,omitempty"`
 }
 
 func localPrivateHost() string {
@@ -195,9 +197,14 @@ func main() {
 						AdvertizedPort: config.GetInt("raft-advertized-port"),
 						ListeningPort:  config.GetInt("raft-port"),
 					},
+					AppliedIndex: messageLog.CurrentStateOffset(),
 				},
 				GetStateSnapshot: func() ([]byte, error) {
-					return nil, nil
+					return json.Marshal(Snapshot{
+						Remote:         id,
+						StateOffset:    messageLog.CurrentStateOffset(),
+						MessagesOffset: messageLog.CurrentOffset(),
+					})
 				},
 			}, rpcDialer, server, nest.L(ctx))
 			snapshotter := <-clusterNode.Snapshotter()
@@ -205,7 +212,10 @@ func main() {
 			if err != nil {
 				nest.L(ctx).Debug("failed to get state snapshot", zap.Error(err))
 			} else {
-				nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err), zap.Int("snapshot_size", snapshot.Size()))
+				err := handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
+				if err != nil {
+					nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
+				}
 			}
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Debug("cluster node stopped")
@@ -230,7 +240,7 @@ func main() {
 					case <-ctx.Done():
 						return
 					case event := <-recordsCh:
-						err := messageLog.PutRecords([]*api.Record{event})
+						err := stateMachine.PutRecords(ctx, []*api.Record{event})
 						if err != nil {
 							nest.L(ctx).Warn("record put failed", zap.Error(err))
 						}
@@ -266,12 +276,10 @@ func main() {
 							if err != nil {
 								nest.L(ctx).Error("failed to load", zap.Error(err))
 							}
-							snapshotDescription := Snapshot{}
-							err = json.Unmarshal(snapshot.Data, &snapshotDescription)
+							err = handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
 							if err != nil {
-								nest.L(ctx).Error("failed to decode snapshot", zap.Error(err))
+								nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
 							}
-							nest.L(ctx).Warn("ignored snapshot", zap.Uint64("remote_node", snapshotDescription.Remote))
 						} else {
 							stateMachine.Apply(event.Index, event.Payload)
 						}

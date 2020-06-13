@@ -11,7 +11,8 @@ import (
 )
 
 type State interface {
-	PutRecords([]*api.Record) error
+	PutRecords(uint64, []*api.Record) error
+	SetCurrentStateOffset(v uint64)
 }
 
 func decode(payload []byte) ([]*StateTransition, error) {
@@ -86,7 +87,9 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
 		case *StateTransition_RecordsPut:
-			err = f.state.PutRecords(event.RecordsPut.Records)
+			err = f.state.PutRecords(index, event.RecordsPut.Records)
+		default:
+			f.state.SetCurrentStateOffset(index)
 		}
 		if err != nil {
 			return err
