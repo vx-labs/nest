@@ -28,6 +28,7 @@ type commitLog struct {
 type CommitLog interface {
 	io.Closer
 	io.Writer
+	Append(value []byte) (uint64, error)
 	Delete() error
 	ReaderFrom(offset uint64) (io.ReadSeeker, error)
 	Offset() uint64
@@ -182,6 +183,19 @@ func (e *commitLog) Write(value []byte) (int, error) {
 		}
 	}
 	return e.activeSegment.Write(value)
+}
+
+func (e *commitLog) Append(value []byte) (uint64, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
+		err := e.appendSegment(uint64(len(e.segments)) * e.segmentMaxRecordCount)
+		if err != nil {
+			return 0, errors.Wrap(err, "failed to extend log")
+		}
+	}
+	_, err := e.activeSegment.Write(value)
+	return e.activeSegment.CurrentOffset(), err
 }
 
 type commitlogReader struct {

@@ -41,6 +41,7 @@ type messageLog struct {
 	stateOffset   gommap.MMap
 	stateOffsetFd *os.File
 	log           commitlog.CommitLog
+	topics        *topicsState
 }
 
 type compatLogger struct {
@@ -53,7 +54,6 @@ func (c *compatLogger) Warningf(string, ...interface{}) {}
 func (c *compatLogger) Errorf(string, ...interface{})   {}
 
 func NewMessageLog(datadir string) (MessageLog, error) {
-
 	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
 	if err != nil {
 		return nil, err
@@ -83,12 +83,14 @@ func NewMessageLog(datadir string) (MessageLog, error) {
 		return nil, err
 	}
 
-	return &messageLog{
+	m := &messageLog{
 		datadir:       datadir,
 		log:           log,
 		stateOffset:   mmapedData,
 		stateOffsetFd: fd,
-	}, nil
+		topics:        NewTopicState(),
+	}
+	return m, nil
 }
 
 func (s *messageLog) Close() error {
@@ -107,6 +109,16 @@ func (s *messageLog) CurrentStateOffset() uint64 {
 	return binary.BigEndian.Uint64(s.stateOffset)
 }
 
+func (s *messageLog) reindexTopics() error {
+	_, err := s.getRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+		return s.topics.Insert(topic, offset)
+	})
+	if err == io.EOF {
+		return nil
+	}
+	return err
+}
+
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
@@ -118,11 +130,12 @@ func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 			return err
 		}
 	}
-	for _, payload := range payloads {
-		_, err := s.log.Write(payload)
+	for idx, payload := range payloads {
+		offset, err := s.log.Append(payload)
 		if err != nil {
 			return err
 		}
+		s.topics.Insert(b[idx].Topic, offset)
 	}
 	s.SetCurrentStateOffset(stateOffset)
 	return nil
@@ -224,6 +237,9 @@ func (s *messageLog) load(source io.Reader) error {
 func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
+	return s.getRecords(patterns, fromOffset, f)
+}
+func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
 	r, err := s.log.ReaderFrom(0)
 	if err != nil {
 		return fromOffset, err
