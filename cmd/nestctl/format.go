@@ -16,7 +16,7 @@ var FuncMap = template.FuncMap{
 	"bytesToString": func(b []byte) string { return string(b) },
 	"shorten":       func(s string) string { return s[0:8] },
 	"parseDate": func(i int64) string {
-		return time.Unix(0, i).Format(time.RFC3339)
+		return time.Unix(0, i).Format(time.Stamp)
 	},
 	"timeToDuration": func(i int64) string {
 		return humanize.Time(time.Unix(i, 0))

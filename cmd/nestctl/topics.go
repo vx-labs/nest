@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const topicMetadataTemplate = `{{ .Name | bytesToString }}: {{ .MessageCount }} messages`
+const topicMetadataTemplate = `{{ .Name | bytesToString | faint }}: {{ .MessageCount | bold }} messages`
 
 func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
