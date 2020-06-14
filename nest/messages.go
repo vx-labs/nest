@@ -287,6 +287,7 @@ func match(pattern []byte, topic []byte) bool {
 func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
 	encoder := json.NewEncoder(sink)
 	r, err := s.log.ReaderFrom(0)
+	defer r.Close()
 	if err != nil {
 		return err
 	}
@@ -369,6 +370,7 @@ func (s *messageLog) Consume(ctx context.Context, processor func(context.Context
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 	if opts.FromOffset > 0 {
 		_, err = r.Seek(opts.FromOffset, io.SeekStart)
 		if err != nil {
@@ -398,6 +400,7 @@ func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	if err != nil {
 		return fromOffset, err
 	}
+	defer r.Close()
 	current, err := r.Seek(fromOffset, io.SeekStart)
 	if err != nil {
 		return current, err
@@ -443,6 +446,7 @@ func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 	buf := make([]byte, 20*1000*1000)
 	for _, topic := range topics {
 		for _, record := range topic.Messages {

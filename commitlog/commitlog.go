@@ -204,9 +204,13 @@ type commitlogReader struct {
 func (c *commitlogReader) Close() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	c.currentReader = nil
-	c.currentSegment = nil
-	return c.currentSegment.Close()
+	if c.currentSegment != nil {
+		err := c.currentSegment.Close()
+		c.currentReader = nil
+		c.currentSegment = nil
+		return err
+	}
+	return nil
 }
 func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
 	c.mtx.Lock()
