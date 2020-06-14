@@ -38,6 +38,7 @@ type MessageLog interface {
 	SetCurrentStateOffset(v uint64)
 	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+	ReindexTopics() chan int
 	ListTopics(pattern []byte) []*api.TopicMetadata
 }
 
@@ -51,6 +52,7 @@ type Snapshot struct {
 type messageLog struct {
 	id            uint64
 	restorelock   sync.RWMutex
+	indexlock     sync.Mutex
 	datadir       string
 	stateOffset   gommap.MMap
 	stateOffsetFd *os.File
@@ -198,14 +200,25 @@ func (s *messageLog) CurrentStateOffset() uint64 {
 	return binary.BigEndian.Uint64(s.stateOffset)
 }
 
-func (s *messageLog) reindexTopics() error {
-	_, err := s.getRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
-		return s.topics.Insert(topic, offset)
-	})
-	if err == io.EOF {
-		return nil
-	}
-	return err
+func (s *messageLog) ReindexTopics() chan int {
+	s.indexlock.Lock()
+	defer s.indexlock.Unlock()
+	newIdx := NewTopicState()
+	out := make(chan int, 1)
+	go func() {
+		defer close(out)
+		s.getRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+			progress := (offset * 100) / s.log.Offset()
+			select {
+			case out <- int(progress):
+			default:
+			}
+			return newIdx.Insert(topic, offset)
+		})
+		s.topics = newIdx
+		// TODO: handle indexing failures?
+	}()
+	return out
 }
 
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {

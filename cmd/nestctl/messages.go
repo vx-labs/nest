@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/nest/nest/api"
@@ -149,7 +150,6 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
-			count := 0
 			ctx, cancel := context.WithCancel(ctx)
 			done := make(chan struct{})
 			start := time.Now()
@@ -165,9 +165,14 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					cancel()
 				}
 			}()
+			total := 100 * 1000 * 1000
+			bar := pb.StartNew(total)
 			go func() {
 				for {
 					defer close(done)
+					if bar.Current() == int64(total) {
+						return
+					}
 					_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
 						Records: []*api.Record{&api.Record{Payload: []byte("test"), Topic: []byte("test"), Timestamp: time.Now().UnixNano()}},
 					})
@@ -177,11 +182,12 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 						}
 						l.Fatal("failed to put record", zap.Error(err))
 					}
-					count++
+					bar.Increment()
 				}
 			}()
 			<-done
 			elapsed := time.Since(start)
+			count := int(bar.Current())
 			rate := count / int(elapsed.Seconds())
 			fmt.Printf("Benchmark done: %d msg in %s\n", count, elapsed.String())
 			fmt.Printf("Rate is %d msg/s\n", rate)

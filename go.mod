@@ -3,6 +3,7 @@ module github.com/vx-labs/nest
 go 1.14
 
 require (
+	github.com/cheggaaa/pb/v3 v3.0.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/gogo/protobuf v1.3.1

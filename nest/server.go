@@ -186,3 +186,12 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 	out := s.state.ListTopics(in.Pattern)
 	return &api.ListTopicsResponse{TopicMetadatas: out}, nil
 }
+func (s *server) ReindexTopics(in *api.ReindexTopicsRequest, stream api.Messages_ReindexTopicsServer) error {
+	for progress := range s.state.ReindexTopics() {
+		stream.Send(&api.ReindexTopicsResponse{
+			Progress: uint64(progress),
+			Total:    100,
+		})
+	}
+	return nil
+}
