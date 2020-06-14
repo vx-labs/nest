@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/tysontate/gommap"
@@ -27,6 +28,11 @@ var (
 
 type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
 
+type ConsumerOptions struct {
+	MaxBatchSize int
+	FromOffset   int64
+}
+
 type MessageLog interface {
 	io.Closer
 	Dump(w io.Writer, lastOffset uint64, whence int) error
@@ -38,9 +44,8 @@ type MessageLog interface {
 	SetCurrentStateOffset(v uint64)
 	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
-	ReindexTopics() chan int
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	Consume(ctx context.Context, fromOffset int64, processor func(context.Context, []*api.Record) error) error
+	Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error
 }
 
 type Snapshot struct {
@@ -71,10 +76,13 @@ func (c *compatLogger) Warningf(string, ...interface{}) {}
 func (c *compatLogger) Errorf(string, ...interface{})   {}
 
 func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, error) {
+	L(ctx).Debug("opening commit log")
+	start := time.Now()
 	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
 	if err != nil {
 		return nil, err
 	}
+	L(ctx).Debug("commit log opened", zap.Duration("elapsed_time", time.Since(start)))
 	statePath := path.Join(datadir, "messages.state")
 	var fd *os.File
 
@@ -100,7 +108,7 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		return nil, err
 	}
 
-	m := &messageLog{
+	s := &messageLog{
 		id:            id,
 		datadir:       datadir,
 		log:           log,
@@ -108,10 +116,34 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		stateOffsetFd: fd,
 		topics:        NewTopicState(),
 	}
-	for range m.ReindexTopics() {
-	}
-	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", m.CurrentOffset()))
-	return m, nil
+	go s.Consume(ctx, func(ctx context.Context, batch Batch) error {
+		topicValues := map[string]*Topic{}
+		for idx, record := range batch.Records {
+			offset := batch.FirstOffset + uint64(idx)
+
+			v, ok := topicValues[string(record.Topic)]
+			if !ok {
+				topicValues[string(record.Topic)] = &Topic{Name: record.Topic, Messages: []uint64{offset}}
+			} else {
+				v.Messages = append(v.Messages, offset)
+			}
+		}
+		for _, t := range topicValues {
+			v := s.topics.Match(t.Name)
+			if len(v) == 0 {
+				s.topics.Set(t.Name, t.Messages)
+			} else {
+				v[0].Messages = append(v[0].Messages, t.Messages...)
+				s.topics.Set(t.Name, v[0].Messages)
+			}
+		}
+		return nil
+	}, ConsumerOptions{
+		FromOffset:   0,
+		MaxBatchSize: 2500,
+	})
+	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", s.CurrentOffset()))
+	return s, nil
 }
 
 type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
@@ -204,38 +236,6 @@ func (s *messageLog) CurrentStateOffset() uint64 {
 	return binary.BigEndian.Uint64(s.stateOffset)
 }
 
-func (s *messageLog) ReindexTopics() chan int {
-	s.indexlock.Lock()
-	defer s.indexlock.Unlock()
-	out := make(chan int, 1)
-	go func() {
-		defer close(out)
-		newIdx := NewTopicState()
-		topicValues := map[string]*Topic{}
-
-		s.getRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
-			progress := (offset * 100) / s.log.Offset()
-			v, ok := topicValues[string(topic)]
-			if !ok {
-				topicValues[string(topic)] = &Topic{Name: topic, Messages: []uint64{offset}}
-			} else {
-				v.Messages = append(v.Messages, offset)
-			}
-			select {
-			case out <- int(progress):
-			default:
-			}
-			return nil
-		})
-		for _, t := range topicValues {
-			newIdx.Set(t.Name, t.Messages)
-		}
-		s.topics = newIdx
-		// TODO: handle indexing failures?
-	}()
-	return out
-}
-
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
@@ -325,8 +325,6 @@ func (s *messageLog) load(source io.Reader) error {
 	for {
 		err := dec.Decode(&record)
 		if err == io.EOF {
-			for range s.ReindexTopics() {
-			}
 			return nil
 		}
 		if err != nil {
@@ -363,27 +361,31 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	defer s.restorelock.RUnlock()
 	return s.getRecords(patterns, fromOffset, f)
 }
-func (s *messageLog) Consume(ctx context.Context, fromOffset int64, processor func(context.Context, []*api.Record) error) error {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-
+func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	r, err := s.log.ReaderFrom(0)
 	if err != nil {
 		return err
 	}
-	_, err = r.Seek(fromOffset, io.SeekStart)
-	if err != nil {
-		return err
+	if opts.FromOffset > 0 {
+		_, err = r.Seek(opts.FromOffset, io.SeekStart)
+		if err != nil {
+			return err
+		}
+	} else if opts.FromOffset < 0 {
+		_, err = r.Seek(opts.FromOffset, io.SeekEnd)
+		if err != nil {
+			return err
+		}
 	}
-	session := NewSession(ctx, r)
+	session := NewSession(ctx, r, opts)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case batch := <-session.Ready():
-			err := processor(ctx, batch.Records)
+			err := processor(ctx, batch)
 			if err != nil {
 				return err
 			}

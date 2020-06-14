@@ -246,14 +246,15 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 	if c.currentOffset == c.log.currentOffset() {
 		return 0, io.EOF
 	}
-	if c.currentOffset%c.log.segmentMaxRecordCount == 0 {
-		err := c.currentSegment.Close()
-		if err != nil {
-			return 0, err
+	if c.currentReader != nil {
+		if c.currentOffset%c.log.segmentMaxRecordCount == 0 {
+			err := c.currentSegment.Close()
+			if err != nil {
+				return 0, err
+			}
+			c.currentReader = nil
+			c.currentSegment = nil
 		}
-		c.currentReader = nil
-		c.currentSegment = nil
-
 	}
 	if c.currentReader == nil {
 		segment, err := c.log.readSegment(uint64(c.currentOffset))

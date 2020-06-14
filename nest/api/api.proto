@@ -35,12 +35,6 @@ message TopicMetadata {
   uint64 MessageCount = 2;
 }
 
-message ReindexTopicsRequest {}
-message ReindexTopicsResponse {
-  uint64 Progress = 1;
-  uint64 total = 2;
-}
-
 message ListTopicsRequest { bytes Pattern = 1; }
 
 message ListTopicsResponse { repeated TopicMetadata TopicMetadatas = 1; }
@@ -51,7 +45,5 @@ service Messages {
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
-  rpc ReindexTopics(ReindexTopicsRequest)
-      returns (stream ReindexTopicsResponse) {}
   rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
 }

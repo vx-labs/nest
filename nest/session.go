@@ -10,7 +10,8 @@ import (
 )
 
 type Batch struct {
-	Records []*api.Record
+	FirstOffset uint64
+	Records     []*api.Record
 }
 type session struct {
 	maxBatchSize int
@@ -23,11 +24,16 @@ type Session interface {
 	Ready() <-chan Batch
 }
 
-func NewSession(ctx context.Context, log io.Reader) Session {
+func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Session {
+	offset, _ := log.Seek(0, io.SeekCurrent)
 	s := &session{
 		ch:           make(chan Batch),
-		maxBatchSize: 25,
+		maxBatchSize: opts.MaxBatchSize,
 		minBatchSize: 0,
+		current: Batch{
+			FirstOffset: uint64(offset),
+			Records:     []*api.Record{},
+		},
 	}
 	go s.run(ctx, log)
 	return s
@@ -60,14 +66,18 @@ func (s *session) run(ctx context.Context, r io.Reader) {
 			if len(s.current.Records) >= s.maxBatchSize {
 				select {
 				case s.ch <- s.current:
-					s.current = Batch{}
+					s.current = Batch{
+						FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+					}
 				case <-ctx.Done():
 					return
 				}
 			} else if len(s.current.Records) >= s.minBatchSize {
 				select {
 				case s.ch <- s.current:
-					s.current = Batch{}
+					s.current = Batch{
+						FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+					}
 				case <-ctx.Done():
 					return
 				default:

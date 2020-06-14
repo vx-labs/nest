@@ -186,24 +186,13 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 	out := s.state.ListTopics(in.Pattern)
 	return &api.ListTopicsResponse{TopicMetadatas: out}, nil
 }
-func (s *server) ReindexTopics(in *api.ReindexTopicsRequest, stream api.Messages_ReindexTopicsServer) error {
-	for progress := range s.state.ReindexTopics() {
-		if err := stream.Send(&api.ReindexTopicsResponse{
-			Progress: uint64(progress),
-			Total:    100,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_StreamRecordsServer) error {
 	patterns := in.Patterns
-	return s.state.Consume(stream.Context(), in.FromOffset, func(ctx context.Context, records []*api.Record) error {
+	return s.state.Consume(stream.Context(), func(ctx context.Context, batch Batch) error {
 		out := []*api.Record{}
 		if len(patterns) > 0 {
-			for _, record := range records {
+			for _, record := range batch.Records {
 				for _, pattern := range patterns {
 					if match(pattern, record.Topic) {
 						out = append(out, record)
@@ -212,6 +201,9 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 			}
 			return stream.Send(&api.GetRecordsResponse{Records: out})
 		}
-		return stream.Send(&api.GetRecordsResponse{Records: records})
+		return stream.Send(&api.GetRecordsResponse{Records: batch.Records})
+	}, ConsumerOptions{
+		FromOffset:   in.FromOffset,
+		MaxBatchSize: 250,
 	})
 }
