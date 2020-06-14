@@ -179,6 +179,7 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRe
 	})
 	return err
 }
+
 func (s *server) Serve(grpcServer *grpc.Server) {
 	api.RegisterMessagesServer(grpcServer, s)
 }
@@ -205,5 +206,12 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 	}, ConsumerOptions{
 		FromOffset:   in.FromOffset,
 		MaxBatchSize: 250,
+	})
+}
+
+func (s *server) GetTopics(in *api.GetTopicsRequest, stream api.Messages_GetTopicsServer) error {
+	return s.state.GetTopics(in.Pattern, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+		return stream.Send(&api.GetTopicsResponse{
+			Records: []*api.Record{&api.Record{Timestamp: ts, Payload: payload, Topic: topic}}})
 	})
 }

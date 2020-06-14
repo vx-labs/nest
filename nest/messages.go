@@ -46,6 +46,7 @@ type MessageLog interface {
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error
+	GetTopics(pattern []byte, f RecordConsumer) error
 }
 
 type Snapshot struct {
@@ -432,4 +433,40 @@ func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordCon
 		}
 		current++
 	}
+}
+
+func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+	topics := s.topics.Match(pattern)
+	r, err := s.log.ReaderFrom(0)
+	if err != nil {
+		return err
+	}
+	buf := make([]byte, 20*1000*1000)
+	for _, topic := range topics {
+		for _, record := range topic.Messages {
+			offset, err := r.Seek(int64(record), io.SeekStart)
+			if err != nil {
+				return err
+			}
+			n, err := r.Read(buf)
+			if err == io.EOF {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			record := &api.Record{}
+			err = proto.Unmarshal(buf[:n], record)
+			if err != nil {
+				return err
+			}
+			err = f(uint64(offset), record.Topic, record.Timestamp, record.Payload)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -18,13 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const recordTemplate = `{{ .Timestamp }} {{ .Topic }} {{ .Payload }}`
-
-type record struct {
-	Timestamp int64
-	Topic     string
-	Payload   string
-}
+const recordTemplate = `{{ .Timestamp }} {{ .Topic | bytesToString }} {{ .Payload | bytesToString }}`
 
 func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
@@ -76,8 +70,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					break
 				}
 				for _, elt := range records.Records {
-					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
-					tpl.Execute(cmd.OutOrStdout(), r)
+					tpl.Execute(cmd.OutOrStdout(), elt)
 					count++
 				}
 			}
@@ -115,8 +108,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					break
 				}
 				for _, elt := range records.Records {
-					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
-					tpl.Execute(cmd.OutOrStdout(), r)
+					tpl.Execute(cmd.OutOrStdout(), elt)
 					count++
 				}
 			}

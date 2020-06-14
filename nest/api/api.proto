@@ -36,8 +36,11 @@ message TopicMetadata {
 }
 
 message ListTopicsRequest { bytes Pattern = 1; }
-
 message ListTopicsResponse { repeated TopicMetadata TopicMetadatas = 1; }
+
+message GetTopicsRequest { bytes Pattern = 1; }
+message GetTopicsResponse { repeated Record Records = 1; }
+
 service Messages {
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
@@ -46,4 +49,5 @@ service Messages {
   rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
+  rpc GetTopics(GetTopicsRequest) returns (stream GetTopicsResponse) {}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,7 +16,7 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "topics",
 	}
-	get := (&cobra.Command{
+	list := (&cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -41,7 +42,41 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 		},
 	})
-	get.Flags().String("format", topicMetadataTemplate, "Format each record using Golang template format.")
+	list.Flags().String("format", topicMetadataTemplate, "Format each record using Golang template format.")
+	list.Flags().StringP("pattern", "p", "#", "Filter topics using this pattern.")
+	cmd.AddCommand(list)
+
+	get := (&cobra.Command{
+		Use: "get",
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			patterns := make([][]byte, len(args))
+			for idx := range patterns {
+				patterns[idx] = []byte(args[idx])
+			}
+			stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
+				Pattern: []byte(config.GetString("pattern")),
+			})
+			if err != nil {
+				l.Fatal("failed to start stream", zap.Error(err))
+			}
+			tpl := ParseTemplate(config.GetString("format"))
+
+			for {
+				msg, err := stream.Recv()
+				if err != nil {
+					if err == io.EOF {
+						return
+					}
+					l.Fatal("failed to stream", zap.Error(err))
+				}
+				for _, record := range msg.Records {
+					tpl.Execute(cmd.OutOrStdout(), record)
+				}
+			}
+		},
+	})
+	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
 	get.Flags().StringP("pattern", "p", "#", "Filter topics using this pattern.")
 	cmd.AddCommand(get)
 
