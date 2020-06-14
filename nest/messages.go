@@ -462,6 +462,7 @@ func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor fu
 	for _, topic := range topics {
 		r := commitlog.OffsetReader(topic.Messages, r)
 		session := NewSession(ctx, r, ConsumerOptions{MaxBatchSize: 10, FromOffset: 0, EOFBehaviour: EOFBehaviourExit})
+	loop:
 		for {
 			select {
 			case <-ctx.Done():
@@ -470,12 +471,12 @@ func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor fu
 				err := processor(ctx, batch)
 				if err != nil {
 					if err == io.EOF {
-						break
+						return nil
 					}
 					return err
 				}
 				if !ok {
-					return nil
+					break loop
 				}
 			}
 		}
