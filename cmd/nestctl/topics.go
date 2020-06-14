@@ -25,25 +25,29 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 			for idx := range patterns {
 				patterns[idx] = []byte(args[idx])
 			}
-			out, err := api.NewMessagesClient(conn).ListTopics(ctx, &api.ListTopicsRequest{
-				Pattern: []byte(config.GetString("pattern")),
-			})
-			if err != nil {
-				l.Fatal("failed to start stream", zap.Error(err))
+			if len(args) == 0 {
+				patterns = append(patterns, []byte("#"))
 			}
-			tpl := ParseTemplate(config.GetString("format"))
+			for _, pattern := range patterns {
+				out, err := api.NewMessagesClient(conn).ListTopics(ctx, &api.ListTopicsRequest{
+					Pattern: pattern,
+				})
+				if err != nil {
+					l.Fatal("failed to start stream", zap.Error(err))
+				}
+				tpl := ParseTemplate(config.GetString("format"))
 
-			if err != nil {
-				l.Error("failed to stream records", zap.Error(err))
-			} else {
-				for _, topic := range out.TopicMetadatas {
-					tpl.Execute(cmd.OutOrStdout(), topic)
+				if err != nil {
+					l.Error("failed to stream records", zap.Error(err))
+				} else {
+					for _, topic := range out.TopicMetadatas {
+						tpl.Execute(cmd.OutOrStdout(), topic)
+					}
 				}
 			}
 		},
 	})
 	list.Flags().String("format", topicMetadataTemplate, "Format each record using Golang template format.")
-	list.Flags().StringP("pattern", "p", "#", "Filter topics using this pattern.")
 	cmd.AddCommand(list)
 
 	get := (&cobra.Command{
@@ -54,30 +58,34 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 			for idx := range patterns {
 				patterns[idx] = []byte(args[idx])
 			}
-			stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
-				Pattern: []byte(config.GetString("pattern")),
-			})
-			if err != nil {
-				l.Fatal("failed to start stream", zap.Error(err))
+			if len(args) == 0 {
+				patterns = append(patterns, []byte("#"))
 			}
-			tpl := ParseTemplate(config.GetString("format"))
-
-			for {
-				msg, err := stream.Recv()
+			for _, pattern := range patterns {
+				stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
+					Pattern: pattern,
+				})
 				if err != nil {
-					if err == io.EOF {
-						return
-					}
-					l.Fatal("failed to stream", zap.Error(err))
+					l.Fatal("failed to start stream", zap.Error(err))
 				}
-				for _, record := range msg.Records {
-					tpl.Execute(cmd.OutOrStdout(), record)
+				tpl := ParseTemplate(config.GetString("format"))
+
+				for {
+					msg, err := stream.Recv()
+					if err != nil {
+						if err == io.EOF {
+							return
+						}
+						l.Fatal("failed to stream", zap.Error(err))
+					}
+					for _, record := range msg.Records {
+						tpl.Execute(cmd.OutOrStdout(), record)
+					}
 				}
 			}
 		},
 	})
 	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
-	get.Flags().StringP("pattern", "p", "#", "Filter topics using this pattern.")
 	cmd.AddCommand(get)
 
 	return cmd
