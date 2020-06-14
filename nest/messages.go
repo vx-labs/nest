@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"sync"
@@ -46,7 +47,7 @@ type ConsumerOptions struct {
 
 type MessageLog interface {
 	io.Closer
-	Dump(w io.Writer, fromOffset, lastOffset uint64, whence int) error
+	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
 	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
@@ -64,7 +65,6 @@ type Snapshot struct {
 	Remote         uint64 `json:"remote,omitempty"`
 	MessagesOffset uint64 `json:"messages_offset,omitempty"`
 	StateOffset    uint64 `json:"state_offset,omitempty"`
-	Topics         []byte `json:"topics,omitempty"`
 }
 
 type messageLog struct {
@@ -213,7 +213,6 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 			return err
 		}
 		s.SetCurrentStateOffset(snapshotDescription.StateOffset)
-		s.topics.store.Load(snapshotDescription.Topics)
 
 		L(ctx).Info("loaded snapshot", zap.Uint64("current_log_offset", s.CurrentOffset()))
 	}
@@ -222,15 +221,10 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 func (s *messageLog) Snapshot() ([]byte, error) {
 	s.restorelock.Lock()
 	defer s.restorelock.Unlock()
-	topics, err := s.topics.store.Dump()
-	if err != nil {
-		return nil, err
-	}
 	return json.Marshal(Snapshot{
 		Remote:         s.id,
 		StateOffset:    s.CurrentStateOffset(),
 		MessagesOffset: s.CurrentOffset(),
-		Topics:         topics,
 	})
 }
 func (s *messageLog) Close() error {
@@ -296,27 +290,60 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64, whence int) error {
+type DumpRecord struct {
+	Offset  uint64 `json:"offset"`
+	Payload []byte `json:"payload"`
+}
+
+func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	encoder := json.NewEncoder(sink)
 	r, err := s.log.ReaderFrom(0)
 	defer r.Close()
 	if err != nil {
 		return err
 	}
-	limit, err := r.Seek(int64(lastOffset), whence)
+	if lastOffset == 0 {
+		lastOffset = s.log.Offset()
+	}
+
+	limit, err := r.Seek(int64(lastOffset), io.SeekStart)
 	if err != nil {
 		return err
 	}
-	_, err = s.GetRecords(nil, int64(fromOffset), func(offset uint64, topic []byte, ts int64, payload []byte) error {
-		if int64(offset) >= limit {
-			return io.EOF
-		}
-		return encoder.Encode(api.Record{Timestamp: ts, Payload: payload, Topic: topic})
-	})
-	if err == io.EOF {
-		return nil
+	_, err = r.Seek(int64(fromOffset), io.SeekStart)
+	if err != nil {
+		return err
 	}
-	return err
+	defer r.Close()
+	session := NewSession(ctx, r, ConsumerOptions{MaxBatchSize: 10, FromOffset: int64(fromOffset), EOFBehaviour: EOFBehaviourExit})
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case batch, ok := <-session.Ready():
+			for idx, record := range batch.Records {
+				offset := batch.FirstOffset + uint64(idx)
+				if offset >= uint64(limit) {
+					return nil
+				}
+				payload, err := proto.Marshal(record)
+				if err != nil {
+					log.Print(err)
+					return err
+				}
+				err = encoder.Encode(DumpRecord{Offset: offset, Payload: payload})
+				if err != nil {
+					log.Print(err)
+					return err
+				}
+			}
+			if !ok {
+				return nil
+			}
+		}
+	}
 }
 
 func (s *messageLog) Load(source io.Reader) error {
@@ -325,23 +352,19 @@ func (s *messageLog) Load(source io.Reader) error {
 	return s.load(source)
 }
 func (s *messageLog) load(source io.Reader) error {
+	firstOffset := s.log.Offset()
 	dec := json.NewDecoder(source)
-	record := &api.Record{}
+	record := &DumpRecord{}
 	for {
 		err := dec.Decode(&record)
 		if err == io.EOF {
 			return nil
 		}
-		if err != nil {
-			return err
-		}
-		payload, err := proto.Marshal(record)
-		if err != nil {
-			return err
-		}
-		_, err = s.log.Write(payload)
-		if err != nil {
-			return err
+		if record.Offset >= firstOffset {
+			_, err = s.log.Write(record.Payload)
+			if err != nil {
+				return err
+			}
 		}
 	}
 }

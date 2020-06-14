@@ -25,7 +25,7 @@ type Session interface {
 }
 
 func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Session {
-	offset, _ := log.Seek(0, io.SeekCurrent)
+	offset, _ := log.Seek(opts.FromOffset, io.SeekStart)
 	s := &session{
 		ch:           make(chan Batch),
 		maxBatchSize: opts.MaxBatchSize,
@@ -76,7 +76,7 @@ func (s *session) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
 				case <-ctx.Done():
 					return
 				}
-			} else if len(s.current.Records) >= s.minBatchSize {
+			} else if len(s.current.Records) > s.minBatchSize {
 				select {
 				case s.ch <- s.current:
 					s.current = Batch{

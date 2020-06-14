@@ -102,7 +102,7 @@ func (s *server) Dump(in *api.DumpRequest, stream api.Messages_DumpServer) error
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to open DestinationURL: %v", err)
 	}
-	return s.state.Dump(w, 0, 0, io.SeekEnd)
+	return s.state.Dump(w, 0, 0)
 }
 
 func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
@@ -112,7 +112,7 @@ func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
 	}
 	defer os.Remove(file.Name())
 	defer file.Close()
-	err = s.state.Dump(file, in.FromOffset, in.ToOffset, io.SeekStart)
+	err = s.state.Dump(file, in.FromOffset, in.ToOffset)
 	if err != nil {
 		return err
 	}
