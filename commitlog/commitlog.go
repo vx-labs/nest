@@ -2,12 +2,9 @@ package commitlog
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"sort"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -28,6 +25,7 @@ type commitLog struct {
 type CommitLog interface {
 	io.Closer
 	io.Writer
+	Append(value []byte) (uint64, error)
 	Delete() error
 	ReaderFrom(offset uint64) (io.ReadSeeker, error)
 	Offset() uint64
@@ -58,31 +56,27 @@ func open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
-	files, err := ioutil.ReadDir(datadir)
-	if err != nil {
-		return nil, ErrCorruptedLog
-	}
-	for _, file := range files {
-		if offsetStr := strings.TrimSuffix(file.Name(), ".log"); offsetStr != file.Name() {
-			offset, err := strconv.ParseUint(offsetStr, 10, 64)
-			if err == nil {
-				segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
-				if err != nil {
-					return nil, ErrCorruptedLog
-				}
-				l.segments = append(l.segments, offset)
-				if l.activeSegment != nil {
-					if l.activeSegment.BaseOffset() < segment.BaseOffset() {
-						l.activeSegment.Close()
-						l.activeSegment = segment
-					} else {
-						segment.Close()
-					}
-				} else {
-					l.activeSegment = segment
-				}
+	var offset uint64 = 0
+	for {
+		segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
+		if err != nil {
+			if err == ErrSegmentDoesNotExist {
+				break
 			}
+			return nil, ErrCorruptedLog
 		}
+		l.segments = append(l.segments, offset)
+		if l.activeSegment != nil {
+			if l.activeSegment.BaseOffset() < segment.BaseOffset() {
+				l.activeSegment.Close()
+				l.activeSegment = segment
+			} else {
+				segment.Close()
+			}
+		} else {
+			l.activeSegment = segment
+		}
+		offset += uint64(segmentMaxRecordCount)
 	}
 	return l, nil
 }
@@ -169,6 +163,7 @@ func (e *commitLog) ReaderFrom(offset uint64) (io.ReadSeeker, error) {
 		currentOffset:  offset,
 		log:            e,
 		currentSegment: segment,
+		segmentSize:    e.segmentMaxRecordCount,
 		currentReader:  segment.ReaderFrom(offset),
 	}, nil
 }
@@ -184,10 +179,24 @@ func (e *commitLog) Write(value []byte) (int, error) {
 	return e.activeSegment.Write(value)
 }
 
+func (e *commitLog) Append(value []byte) (uint64, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
+		err := e.appendSegment(uint64(len(e.segments)) * e.segmentMaxRecordCount)
+		if err != nil {
+			return 0, errors.Wrap(err, "failed to extend log")
+		}
+	}
+	_, err := e.activeSegment.Write(value)
+	return e.activeSegment.CurrentOffset(), err
+}
+
 type commitlogReader struct {
 	mtx            sync.Mutex
 	currentReader  io.Reader
 	currentSegment Segment
+	segmentSize    uint64
 	log            *commitLog
 	currentOffset  uint64
 }
@@ -234,34 +243,34 @@ func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
 func (c *commitlogReader) Read(p []byte) (int, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	for {
-		if c.currentReader == nil {
-			segment, err := c.log.readSegment(uint64(c.currentOffset))
-			if err == ErrSegmentDoesNotExist {
-				return 0, io.EOF
-			}
-			if err != nil {
-				return 0, err
-			}
-			c.currentSegment = segment
-			c.currentReader = segment.ReaderFrom(c.currentOffset)
-		}
-
-		n, err := c.currentReader.Read(p)
-		nextOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
-		if err == io.EOF {
-			if c.currentOffset == nextOffset {
-				return 0, io.EOF
-			}
-			c.currentOffset = nextOffset
+	if c.currentOffset == c.log.currentOffset() {
+		return 0, io.EOF
+	}
+	if c.currentReader != nil {
+		if c.currentOffset%c.log.segmentMaxRecordCount == 0 {
 			err := c.currentSegment.Close()
 			if err != nil {
 				return 0, err
 			}
 			c.currentReader = nil
 			c.currentSegment = nil
-		} else {
-			return n, err
 		}
 	}
+	if c.currentReader == nil {
+		segment, err := c.log.readSegment(uint64(c.currentOffset))
+		if err == ErrSegmentDoesNotExist {
+			return 0, io.EOF
+		}
+		if err != nil {
+			return 0, err
+		}
+		c.currentSegment = segment
+		c.currentReader = segment.ReaderFrom(c.currentOffset)
+	}
+
+	n, err := c.currentReader.Read(p)
+	if n > 0 {
+		c.currentOffset++
+	}
+	return n, err
 }

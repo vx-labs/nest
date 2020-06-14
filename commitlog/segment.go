@@ -164,9 +164,6 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 
 func (e *segment) ReadEntryAt(buf []byte, logOffset int64) (Entry, error) {
 	offset := uint64(logOffset) - e.baseOffset
-	if offset >= e.currentOffset {
-		return nil, io.EOF
-	}
 	position, err := e.index.readPosition(offset)
 	if err != nil {
 		return nil, err
@@ -240,9 +237,6 @@ func (s *segmentReader) Read(p []byte) (int, error) {
 	defer s.mtx.Unlock()
 	var err error
 	if s.currentEntry != nil && len(s.currentEntry.Payload()) == s.entryPos {
-		if s.offset == uint64(s.segment.Size()) {
-			return 0, io.EOF
-		}
 		s.offset++
 		s.entryPos = 0
 		s.currentEntry = nil

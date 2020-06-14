@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/nest/nest/api"
@@ -29,7 +30,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "messages",
 	}
-	cmd.AddCommand(&cobra.Command{
+	put := &cobra.Command{
 		Use: "put",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
@@ -38,8 +39,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				Records: []*api.Record{
 					{
 						Timestamp: time.Now().UnixNano(),
-						Topic:     []byte("test"),
-						Payload:   []byte("test"),
+						Topic:     []byte(config.GetString("topic")),
+						Payload:   []byte(config.GetString("payload")),
 					},
 				},
 			})
@@ -48,7 +49,10 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 			cancel()
 		},
-	})
+	}
+	put.Flags().StringP("topic", "t", "test", "Message's topic")
+	put.Flags().StringP("payload", "p", "test", "Message's payload")
+	cmd.AddCommand(put)
 	get := (&cobra.Command{
 		Use: "get",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -58,8 +62,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				patterns[idx] = []byte(args[idx])
 			}
 			stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
-				Patterns:      patterns,
-				FromTimestamp: config.GetInt64("from-timestamp"),
+				Patterns:   patterns,
+				FromOffset: config.GetInt64("from-offset"),
 			})
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
@@ -85,8 +89,47 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		},
 	})
 	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
-	get.Flags().Int64P("from-timestamp", "f", -1, "Fetch records written after the given timestamp. Specify -1 to only fetch the most recent record.")
+	get.Flags().Int64P("from-offset", "f", 0, "Fetch records written after the given timestamp.")
 	cmd.AddCommand(get)
+
+	stream := (&cobra.Command{
+		Use: "stream",
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			patterns := make([][]byte, len(args))
+			for idx := range patterns {
+				patterns[idx] = []byte(args[idx])
+			}
+			stream, err := api.NewMessagesClient(conn).StreamRecords(ctx, &api.GetRecordsRequest{
+				Patterns:   patterns,
+				FromOffset: config.GetInt64("from-offset"),
+			})
+			if err != nil {
+				l.Fatal("failed to start stream", zap.Error(err))
+			}
+			tpl := ParseTemplate(config.GetString("format"))
+			count := 0
+			for {
+				records, err := stream.Recv()
+				if err != nil {
+					break
+				}
+				for _, elt := range records.Records {
+					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
+					tpl.Execute(cmd.OutOrStdout(), r)
+					count++
+				}
+			}
+			if err != io.EOF && err != nil {
+				l.Error("failed to stream records", zap.Error(err))
+			} else {
+				fmt.Fprintf(cmd.ErrOrStderr(), "\nPattern %q: %d messages\n\n", strings.Join(args, ", "), count)
+			}
+		},
+	})
+	stream.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
+	stream.Flags().Int64P("from-offset", "f", 0, "Fetch records written after the given timestamp.")
+	cmd.AddCommand(stream)
 
 	backupCommand := &cobra.Command{
 		Use:  "backup",
@@ -146,7 +189,6 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
-			count := 0
 			ctx, cancel := context.WithCancel(ctx)
 			done := make(chan struct{})
 			start := time.Now()
@@ -162,9 +204,14 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 					cancel()
 				}
 			}()
+			total := 100 * 1000 * 1000
+			bar := pb.StartNew(total)
 			go func() {
 				for {
 					defer close(done)
+					if bar.Current() == int64(total) {
+						return
+					}
 					_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
 						Records: []*api.Record{&api.Record{Payload: []byte("test"), Topic: []byte("test"), Timestamp: time.Now().UnixNano()}},
 					})
@@ -174,11 +221,12 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 						}
 						l.Fatal("failed to put record", zap.Error(err))
 					}
-					count++
+					bar.Increment()
 				}
 			}()
 			<-done
 			elapsed := time.Since(start)
+			count := int(bar.Current())
 			rate := count / int(elapsed.Seconds())
 			fmt.Printf("Benchmark done: %d msg in %s\n", count, elapsed.String())
 			fmt.Printf("Rate is %d msg/s\n", rate)

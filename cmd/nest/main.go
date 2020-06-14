@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -29,12 +28,6 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
-
-type Snapshot struct {
-	Remote         uint64 `json:"remote,omitempty"`
-	MessagesOffset uint64 `json:"messages_offset,omitempty"`
-	StateOffset    uint64 `json:"state_offset,omitempty"`
-}
 
 func localPrivateHost() string {
 	ifaces, err := net.Interfaces()
@@ -172,7 +165,7 @@ func main() {
 					zap.Duration("consul_discovery_duration", time.Since(discoveryStarted)), zap.Int("node_count", len(consulJoinList)))
 				joinList = append(joinList, consulJoinList...)
 			}
-			messageLog, err := nest.NewMessageLog(config.GetString("data-dir"))
+			messageLog, err := nest.NewMessageLog(ctx, id, config.GetString("data-dir"))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
@@ -200,23 +193,21 @@ func main() {
 					AppliedIndex: messageLog.CurrentStateOffset(),
 				},
 				GetStateSnapshot: func() ([]byte, error) {
-					return json.Marshal(Snapshot{
-						Remote:         id,
-						StateOffset:    messageLog.CurrentStateOffset(),
-						MessagesOffset: messageLog.CurrentOffset(),
-					})
+					nest.L(ctx).Debug("snapshoting message log")
+					return messageLog.Snapshot()
 				},
-			}, rpcDialer, server, nest.L(ctx))
+			},
+				rpcDialer, server, nest.L(ctx))
 			snapshotter := <-clusterNode.Snapshotter()
+
 			snapshot, err := snapshotter.Load()
-			if err != nil {
-				nest.L(ctx).Debug("failed to get state snapshot", zap.Error(err))
-			} else {
-				err := handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
+			if err == nil {
+				err := messageLog.Restore(ctx, snapshot.Data, clusterNode.Call)
 				if err != nil {
 					nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
 				}
 			}
+
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Debug("cluster node stopped")
 				clusterNode.Run(ctx)
@@ -276,7 +267,7 @@ func main() {
 							if err != nil {
 								nest.L(ctx).Error("failed to load", zap.Error(err))
 							}
-							err = handleSnapshot(ctx, id, snapshot, messageLog, clusterNode)
+							err = messageLog.Restore(ctx, snapshot.Data, clusterNode.Call)
 							if err != nil {
 								nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
 							}

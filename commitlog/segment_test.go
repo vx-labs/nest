@@ -76,10 +76,6 @@ func TestSegment(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 4, n)
 		require.Equal(t, value, buf)
-
-		n, err = r.Read(buf)
-		require.Equal(t, io.EOF, err)
-		require.Equal(t, 0, n)
 	})
 	t.Run("should allow seeking position in reader", func(t *testing.T) {
 		r := s.ReaderFrom(0).(*segmentReader)
