@@ -35,14 +35,15 @@ func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Se
 			Records:     []*api.Record{},
 		},
 	}
-	go s.run(ctx, log)
+	go s.run(ctx, log, opts)
 	return s
 }
 
 func (s *session) Ready() <-chan Batch {
 	return s.ch
 }
-func (s *session) run(ctx context.Context, r io.Reader) {
+func (s *session) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
+	defer close(s.ch)
 	buf := make([]byte, 20*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -57,6 +58,9 @@ func (s *session) run(ctx context.Context, r io.Reader) {
 			s.current.Records = append(s.current.Records, record)
 		}
 		if n == 0 && len(s.current.Records) == 0 {
+			if opts.EOFBehaviour == EOFBehaviourExit {
+				return
+			}
 			select {
 			case <-ticker.C:
 			case <-ctx.Done():

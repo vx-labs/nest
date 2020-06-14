@@ -210,8 +210,7 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, stream api.Messages_GetTopicsServer) error {
-	return s.state.GetTopics(in.Pattern, func(offset uint64, topic []byte, ts int64, payload []byte) error {
-		return stream.Send(&api.GetTopicsResponse{
-			Records: []*api.Record{&api.Record{Timestamp: ts, Payload: payload, Topic: topic}}})
+	return s.state.GetTopics(stream.Context(), in.Pattern, func(ctx context.Context, batch Batch) error {
+		return stream.Send(&api.GetTopicsResponse{Records: batch.Records})
 	})
 }

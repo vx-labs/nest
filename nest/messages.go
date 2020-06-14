@@ -28,9 +28,20 @@ var (
 
 type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
 
+type eofBehaviour int
+
+const (
+	// EOFBehaviourPoll will make the session poll for new records after an EOF error is received
+	EOFBehaviourPoll eofBehaviour = 1 << iota
+	// EOFBehaviourExit wil make the session exit when EOF is received
+	EOFBehaviourExit eofBehaviour = 1 << iota
+)
+
+// ConsumerOptions describes stream session preferences
 type ConsumerOptions struct {
 	MaxBatchSize int
 	FromOffset   int64
+	EOFBehaviour eofBehaviour
 }
 
 type MessageLog interface {
@@ -46,7 +57,7 @@ type MessageLog interface {
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error
-	GetTopics(pattern []byte, f RecordConsumer) error
+	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, Batch) error) error
 }
 
 type Snapshot struct {
@@ -438,7 +449,8 @@ func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	}
 }
 
-func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
+func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, Batch) error) error {
+
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	topics := s.topics.Match(pattern)
@@ -447,28 +459,25 @@ func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
 		return err
 	}
 	defer r.Close()
-	buf := make([]byte, 20*1000*1000)
 	for _, topic := range topics {
 		r := commitlog.OffsetReader(topic.Messages, r)
-		idx := 0
+		session := NewSession(ctx, r, ConsumerOptions{MaxBatchSize: 10, FromOffset: 0, EOFBehaviour: EOFBehaviourExit})
 		for {
-			n, err := r.Read(buf)
-			if err == io.EOF {
-				continue
+			select {
+			case <-ctx.Done():
+				return nil
+			case batch, ok := <-session.Ready():
+				err := processor(ctx, batch)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return err
+				}
+				if !ok {
+					return nil
+				}
 			}
-			if err != nil {
-				return err
-			}
-			record := &api.Record{}
-			err = proto.Unmarshal(buf[:n], record)
-			if err != nil {
-				return err
-			}
-			err = f(uint64(topic.Messages[idx]), record.Topic, record.Timestamp, record.Payload)
-			if err != nil {
-				return err
-			}
-			idx++
 		}
 	}
 	return nil
