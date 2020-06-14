@@ -40,7 +40,7 @@ type offsetReader struct {
 	backend io.ReadSeeker
 }
 
-func OffsetReader(offsets []uint64, r io.ReadSeeker) io.Reader {
+func OffsetReader(offsets []uint64, r io.ReadSeeker) io.ReadSeeker {
 	return &offsetReader{
 		backend: r,
 		offsets: offsets,
@@ -48,6 +48,23 @@ func OffsetReader(offsets []uint64, r io.ReadSeeker) io.Reader {
 	}
 }
 
+func (o *offsetReader) Seek(offset int64, whence int) (int64, error) {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	newCursor := o.cursor
+	switch whence {
+	case io.SeekStart:
+		newCursor = int(offset)
+	case io.SeekEnd:
+		newCursor = len(o.offsets) - 1 + int(offset)
+	default:
+	}
+	if newCursor >= 0 && newCursor < len(o.offsets) {
+		o.cursor = newCursor
+	}
+	return int64(o.offsets[o.cursor]), nil
+}
 func (o *offsetReader) Read(p []byte) (int, error) {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
