@@ -2,6 +2,7 @@ package commitlog
 
 import (
 	"io"
+	"log"
 	"os"
 	"path"
 	"sort"
@@ -163,6 +164,7 @@ func (e *commitLog) ReaderFrom(offset uint64) (io.ReadSeeker, error) {
 		currentOffset:  offset,
 		log:            e,
 		currentSegment: segment,
+		segmentSize:    e.segmentMaxRecordCount,
 		currentReader:  segment.ReaderFrom(offset),
 	}, nil
 }
@@ -195,6 +197,7 @@ type commitlogReader struct {
 	mtx            sync.Mutex
 	currentReader  io.Reader
 	currentSegment Segment
+	segmentSize    uint64
 	log            *commitLog
 	currentOffset  uint64
 }
@@ -241,34 +244,35 @@ func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
 func (c *commitlogReader) Read(p []byte) (int, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	for {
-		if c.currentReader == nil {
-			segment, err := c.log.readSegment(uint64(c.currentOffset))
-			if err == ErrSegmentDoesNotExist {
-				return 0, io.EOF
-			}
-			if err != nil {
-				return 0, err
-			}
-			c.currentSegment = segment
-			c.currentReader = segment.ReaderFrom(c.currentOffset)
-		}
-
-		n, err := c.currentReader.Read(p)
-		if err == io.EOF {
-			nextOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
-			if c.currentOffset == c.log.currentOffset() {
-				return 0, io.EOF
-			}
-			c.currentOffset = nextOffset
-			err := c.currentSegment.Close()
-			if err != nil {
-				return 0, err
-			}
-			c.currentReader = nil
-			c.currentSegment = nil
-		} else {
-			return n, err
-		}
+	if c.currentOffset == c.log.currentOffset() {
+		return 0, io.EOF
 	}
+	if c.currentOffset%c.log.segmentMaxRecordCount == 0 {
+		log.Print("log segment consumed, advancing")
+		err := c.currentSegment.Close()
+		if err != nil {
+			return 0, err
+		}
+		c.currentReader = nil
+		c.currentSegment = nil
+
+	}
+	if c.currentReader == nil {
+		segment, err := c.log.readSegment(uint64(c.currentOffset))
+		if err == ErrSegmentDoesNotExist {
+			log.Print("segment not found")
+			return 0, io.EOF
+		}
+		if err != nil {
+			return 0, err
+		}
+		c.currentSegment = segment
+		c.currentReader = segment.ReaderFrom(c.currentOffset)
+	}
+
+	n, err := c.currentReader.Read(p)
+	if n > 0 {
+		c.currentOffset++
+	}
+	return n, err
 }
