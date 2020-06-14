@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/tysontate/gommap"
@@ -107,6 +109,8 @@ func NewMessageLog(id uint64, datadir string) (MessageLog, error) {
 		stateOffsetFd: fd,
 		topics:        NewTopicState(),
 	}
+	for range m.ReindexTopics() {
+	}
 	return m, nil
 }
 
@@ -203,18 +207,29 @@ func (s *messageLog) CurrentStateOffset() uint64 {
 func (s *messageLog) ReindexTopics() chan int {
 	s.indexlock.Lock()
 	defer s.indexlock.Unlock()
-	newIdx := NewTopicState()
 	out := make(chan int, 1)
 	go func() {
 		defer close(out)
+		newIdx := NewTopicState()
+		topicValues := map[string]*Topic{}
+
 		s.getRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
 			progress := (offset * 100) / s.log.Offset()
+			v, ok := topicValues[string(topic)]
+			if !ok {
+				topicValues[string(topic)] = &Topic{Name: topic, Messages: []uint64{offset}}
+			} else {
+				v.Messages = append(v.Messages, offset)
+			}
 			select {
 			case out <- int(progress):
 			default:
 			}
-			return newIdx.Insert(topic, offset)
+			return nil
 		})
+		for _, t := range topicValues {
+			newIdx.Set(t.Name, t.Messages)
+		}
 		s.topics = newIdx
 		// TODO: handle indexing failures?
 	}()
@@ -224,6 +239,10 @@ func (s *messageLog) ReindexTopics() chan int {
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
+	start := time.Now()
+	defer func() {
+		log.Printf("records put offset=%d elapsed=%s", stateOffset, time.Since(start).String())
+	}()
 	payloads := make([][]byte, len(b))
 	var err error
 	for idx, record := range b {
@@ -232,12 +251,12 @@ func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 			return err
 		}
 	}
-	for idx, payload := range payloads {
-		offset, err := s.log.Append(payload)
+	for _, payload := range payloads {
+		_, err := s.log.Append(payload)
 		if err != nil {
 			return err
 		}
-		s.topics.Insert(b[idx].Topic, offset)
+		//	s.topics.Insert(b[idx].Topic, offset)
 	}
 	s.SetCurrentStateOffset(stateOffset)
 	return nil
@@ -310,6 +329,8 @@ func (s *messageLog) load(source io.Reader) error {
 	for {
 		err := dec.Decode(&record)
 		if err == io.EOF {
+			for range s.ReindexTopics() {
+			}
 			return nil
 		}
 		if err != nil {

@@ -67,3 +67,22 @@ func (t *topicsState) Insert(name []byte, offset uint64) error {
 	topic.Messages = append(topic.Messages, offset)
 	return t.store.Insert(name, encodeTopic(topic))
 }
+func (t *topicsState) Set(name []byte, offsets []uint64) error {
+	out := [][]byte{}
+	err := t.store.Match(name, &out)
+	if err != nil {
+		return err
+	}
+	if len(out) > 1 {
+		return errors.New("invalid topic provided")
+	}
+	if len(out) == 0 {
+		return t.store.Insert(name, encodeTopic(Topic{
+			Name:     name,
+			Messages: offsets,
+		}))
+	}
+	topic := decodeTopic(out[0])
+	topic.Messages = offsets
+	return t.store.Insert(name, encodeTopic(topic))
+}
