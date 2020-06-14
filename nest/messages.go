@@ -2,9 +2,11 @@ package nest
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"sync"
@@ -14,6 +16,7 @@ import (
 	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 var (
@@ -23,19 +26,29 @@ var (
 )
 
 type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
+
 type MessageLog interface {
 	io.Closer
 	Dump(w io.Writer, lastOffset uint64, whence int) error
 	Load(w io.Reader) error
-	LoadState(uint64, io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
 	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
 	CurrentStateOffset() uint64
 	CurrentOffset() uint64
 	SetCurrentStateOffset(v uint64)
+	Snapshot() ([]byte, error)
+	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+}
+
+type Snapshot struct {
+	Remote         uint64 `json:"remote,omitempty"`
+	MessagesOffset uint64 `json:"messages_offset,omitempty"`
+	StateOffset    uint64 `json:"state_offset,omitempty"`
+	Topics         []byte `json:"topics,omitempty"`
 }
 
 type messageLog struct {
+	id            uint64
 	restorelock   sync.RWMutex
 	datadir       string
 	stateOffset   gommap.MMap
@@ -53,12 +66,12 @@ func (c *compatLogger) Infof(string, ...interface{})    {}
 func (c *compatLogger) Warningf(string, ...interface{}) {}
 func (c *compatLogger) Errorf(string, ...interface{})   {}
 
-func NewMessageLog(datadir string) (MessageLog, error) {
+func NewMessageLog(id uint64, datadir string) (MessageLog, error) {
 	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
 	if err != nil {
 		return nil, err
 	}
-	statePath := path.Join(datadir, "messages.json")
+	statePath := path.Join(datadir, "messages.state")
 	var fd *os.File
 
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
@@ -84,6 +97,7 @@ func NewMessageLog(datadir string) (MessageLog, error) {
 	}
 
 	m := &messageLog{
+		id:            id,
 		datadir:       datadir,
 		log:           log,
 		stateOffset:   mmapedData,
@@ -93,6 +107,80 @@ func NewMessageLog(datadir string) (MessageLog, error) {
 	return m, nil
 }
 
+type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
+
+func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
+	s.restorelock.Lock()
+	defer s.restorelock.Unlock()
+	L(ctx).Debug("restoring snapshot")
+
+	snapshotDescription := Snapshot{}
+	err := json.Unmarshal(snapshot, &snapshotDescription)
+	if err != nil {
+		L(ctx).Debug("failed to decode state snapshot", zap.Error(err))
+	} else {
+		if s.id == snapshotDescription.Remote {
+			return nil
+		}
+		L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.CurrentOffset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
+		file, err := ioutil.TempFile("", "sst-incoming.*.nest")
+		if err != nil {
+			L(ctx).Fatal("failed to create tmp file to receive snapshot", zap.Error(err))
+		}
+		defer os.Remove(file.Name())
+		defer file.Close()
+		err = caller(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
+			stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{
+				ToOffset: snapshotDescription.MessagesOffset,
+			})
+			if err != nil {
+				return err
+			}
+
+			for {
+				chunk, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return err
+				}
+				_, err = file.Write(chunk.Chunk)
+				if err != nil {
+					return err
+				}
+			}
+			return file.Sync()
+		})
+		if err != nil {
+			L(ctx).Fatal("failed to receive snapshot", zap.Error(err))
+		}
+		file.Seek(0, io.SeekStart)
+		err = s.load(file)
+		if err != nil {
+			return err
+		}
+		s.SetCurrentStateOffset(snapshotDescription.StateOffset)
+		s.topics.store.Load(snapshotDescription.Topics)
+
+		L(ctx).Info("loaded snapshot", zap.Uint64("current_log_offset", s.CurrentOffset()))
+	}
+	return nil
+}
+func (s *messageLog) Snapshot() ([]byte, error) {
+	s.restorelock.Lock()
+	defer s.restorelock.Unlock()
+	topics, err := s.topics.store.Dump()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(Snapshot{
+		Remote:         s.id,
+		StateOffset:    s.CurrentStateOffset(),
+		MessagesOffset: s.CurrentOffset(),
+		Topics:         topics,
+	})
+}
 func (s *messageLog) Close() error {
 	s.stateOffset.UnsafeUnmap()
 	s.stateOffsetFd.Close()
@@ -187,17 +275,7 @@ func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
 	}
 	return err
 }
-func (s *messageLog) LoadState(offset uint64, source io.Reader) error {
-	s.restorelock.Lock()
-	defer s.restorelock.Unlock()
 
-	err := s.load(source)
-	if err != nil {
-		return err
-	}
-	s.SetCurrentStateOffset(offset)
-	return nil
-}
 func (s *messageLog) Load(source io.Reader) error {
 	s.restorelock.Lock()
 	defer s.restorelock.Unlock()
