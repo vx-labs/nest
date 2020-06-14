@@ -36,12 +36,12 @@ func NewSession(ctx context.Context, log io.Reader) Session {
 func (s *session) Ready() <-chan Batch {
 	return s.ch
 }
-func (s *session) run(ctx context.Context, log io.Reader) {
+func (s *session) run(ctx context.Context, r io.Reader) {
 	buf := make([]byte, 200*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		n, err := log.Read(buf)
+		n, err := r.Read(buf)
 		if n > 0 {
 			record := &api.Record{}
 			err = proto.Unmarshal(buf[:n], record)
