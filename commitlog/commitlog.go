@@ -2,7 +2,6 @@ package commitlog
 
 import (
 	"io"
-	"log"
 	"os"
 	"path"
 	"sort"
@@ -248,7 +247,6 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 	if c.currentOffset%c.log.segmentMaxRecordCount == 0 {
-		log.Print("log segment consumed, advancing")
 		err := c.currentSegment.Close()
 		if err != nil {
 			return 0, err
@@ -260,7 +258,6 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 	if c.currentReader == nil {
 		segment, err := c.log.readSegment(uint64(c.currentOffset))
 		if err == ErrSegmentDoesNotExist {
-			log.Print("segment not found")
 			return 0, io.EOF
 		}
 		if err != nil {
