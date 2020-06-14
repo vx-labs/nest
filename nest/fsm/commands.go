@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -68,6 +69,11 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 	return f.commit(ctx, payload)
 }
 func (f *FSM) PutRecords(ctx context.Context, records []*api.Record) error {
+	for _, record := range records {
+		if len(record.Payload) > 15*1000*1000 || len(record.Topic) > 5*1000*5000 {
+			return errors.New("payload or topic size exceeded")
+		}
+	}
 	payload, err := encode(&StateTransition{Event: &StateTransition_RecordsPut{
 		RecordsPut: &RecordsPut{
 			Records: records,

@@ -401,7 +401,7 @@ func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	if err != nil {
 		return current, err
 	}
-	buf := make([]byte, 200*1000*1000)
+	buf := make([]byte, 20*1000*1000)
 	for {
 		n, err := r.Read(buf)
 		if err == io.EOF {

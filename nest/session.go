@@ -43,7 +43,7 @@ func (s *session) Ready() <-chan Batch {
 	return s.ch
 }
 func (s *session) run(ctx context.Context, r io.Reader) {
-	buf := make([]byte, 200*1000*1000)
+	buf := make([]byte, 20*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
