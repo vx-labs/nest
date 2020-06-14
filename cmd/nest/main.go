@@ -165,7 +165,7 @@ func main() {
 					zap.Duration("consul_discovery_duration", time.Since(discoveryStarted)), zap.Int("node_count", len(consulJoinList)))
 				joinList = append(joinList, consulJoinList...)
 			}
-			messageLog, err := nest.NewMessageLog(id, config.GetString("data-dir"))
+			messageLog, err := nest.NewMessageLog(ctx, id, config.GetString("data-dir"))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}

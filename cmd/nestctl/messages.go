@@ -62,8 +62,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				patterns[idx] = []byte(args[idx])
 			}
 			stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
-				Patterns:      patterns,
-				FromTimestamp: config.GetInt64("from-timestamp"),
+				Patterns:   patterns,
+				FromOffset: config.GetInt64("from-offset"),
 			})
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
@@ -89,8 +89,47 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		},
 	})
 	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
-	get.Flags().Int64P("from-timestamp", "f", -1, "Fetch records written after the given timestamp. Specify -1 to only fetch the most recent record.")
+	get.Flags().Int64P("from-offset", "f", 0, "Fetch records written after the given timestamp.")
 	cmd.AddCommand(get)
+
+	stream := (&cobra.Command{
+		Use: "stream",
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			patterns := make([][]byte, len(args))
+			for idx := range patterns {
+				patterns[idx] = []byte(args[idx])
+			}
+			stream, err := api.NewMessagesClient(conn).StreamRecords(ctx, &api.GetRecordsRequest{
+				Patterns:   patterns,
+				FromOffset: config.GetInt64("from-offset"),
+			})
+			if err != nil {
+				l.Fatal("failed to start stream", zap.Error(err))
+			}
+			tpl := ParseTemplate(config.GetString("format"))
+			count := 0
+			for {
+				records, err := stream.Recv()
+				if err != nil {
+					break
+				}
+				for _, elt := range records.Records {
+					r := record{Timestamp: time.Unix(0, elt.Timestamp).Unix(), Topic: string(elt.Topic), Payload: string(elt.Payload)}
+					tpl.Execute(cmd.OutOrStdout(), r)
+					count++
+				}
+			}
+			if err != io.EOF && err != nil {
+				l.Error("failed to stream records", zap.Error(err))
+			} else {
+				fmt.Fprintf(cmd.ErrOrStderr(), "\nPattern %q: %d messages\n\n", strings.Join(args, ", "), count)
+			}
+		},
+	})
+	stream.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
+	stream.Flags().Int64P("from-offset", "f", 0, "Fetch records written after the given timestamp.")
+	cmd.AddCommand(stream)
 
 	backupCommand := &cobra.Command{
 		Use:  "backup",

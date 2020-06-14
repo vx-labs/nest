@@ -7,11 +7,9 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/tysontate/gommap"
@@ -42,6 +40,7 @@ type MessageLog interface {
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ReindexTopics() chan int
 	ListTopics(pattern []byte) []*api.TopicMetadata
+	Consume(ctx context.Context, fromOffset int64, processor func(context.Context, []*api.Record) error) error
 }
 
 type Snapshot struct {
@@ -71,7 +70,7 @@ func (c *compatLogger) Infof(string, ...interface{})    {}
 func (c *compatLogger) Warningf(string, ...interface{}) {}
 func (c *compatLogger) Errorf(string, ...interface{})   {}
 
-func NewMessageLog(id uint64, datadir string) (MessageLog, error) {
+func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, error) {
 	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
 	if err != nil {
 		return nil, err
@@ -111,6 +110,7 @@ func NewMessageLog(id uint64, datadir string) (MessageLog, error) {
 	}
 	for range m.ReindexTopics() {
 	}
+	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", m.CurrentOffset()))
 	return m, nil
 }
 
@@ -239,10 +239,6 @@ func (s *messageLog) ReindexTopics() chan int {
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
-	start := time.Now()
-	defer func() {
-		log.Printf("records put offset=%d elapsed=%s", stateOffset, time.Since(start).String())
-	}()
 	payloads := make([][]byte, len(b))
 	var err error
 	for idx, record := range b {
@@ -366,6 +362,33 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	return s.getRecords(patterns, fromOffset, f)
+}
+func (s *messageLog) Consume(ctx context.Context, fromOffset int64, processor func(context.Context, []*api.Record) error) error {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	r, err := s.log.ReaderFrom(0)
+	if err != nil {
+		return err
+	}
+	_, err = r.Seek(fromOffset, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	session := NewSession(ctx, r)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case batch := <-session.Ready():
+			err := processor(ctx, batch.Records)
+			if err != nil {
+				return err
+			}
+		}
+	}
 }
 func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
 	r, err := s.log.ReaderFrom(0)

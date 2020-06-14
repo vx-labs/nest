@@ -2,12 +2,9 @@ package commitlog
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"sort"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -59,31 +56,27 @@ func open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
-	files, err := ioutil.ReadDir(datadir)
-	if err != nil {
-		return nil, ErrCorruptedLog
-	}
-	for _, file := range files {
-		if offsetStr := strings.TrimSuffix(file.Name(), ".log"); offsetStr != file.Name() {
-			offset, err := strconv.ParseUint(offsetStr, 10, 64)
-			if err == nil {
-				segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
-				if err != nil {
-					return nil, ErrCorruptedLog
-				}
-				l.segments = append(l.segments, offset)
-				if l.activeSegment != nil {
-					if l.activeSegment.BaseOffset() < segment.BaseOffset() {
-						l.activeSegment.Close()
-						l.activeSegment = segment
-					} else {
-						segment.Close()
-					}
-				} else {
-					l.activeSegment = segment
-				}
+	var offset uint64 = 0
+	for {
+		segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
+		if err != nil {
+			if err == ErrSegmentDoesNotExist {
+				break
 			}
+			return nil, ErrCorruptedLog
 		}
+		l.segments = append(l.segments, offset)
+		if l.activeSegment != nil {
+			if l.activeSegment.BaseOffset() < segment.BaseOffset() {
+				l.activeSegment.Close()
+				l.activeSegment = segment
+			} else {
+				segment.Close()
+			}
+		} else {
+			l.activeSegment = segment
+		}
+		offset += uint64(segmentMaxRecordCount)
 	}
 	return l, nil
 }
@@ -262,9 +255,9 @@ func (c *commitlogReader) Read(p []byte) (int, error) {
 		}
 
 		n, err := c.currentReader.Read(p)
-		nextOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
 		if err == io.EOF {
-			if c.currentOffset == nextOffset {
+			nextOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
+			if c.currentOffset == c.log.currentOffset() {
 				return 0, io.EOF
 			}
 			c.currentOffset = nextOffset

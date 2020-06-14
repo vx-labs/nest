@@ -11,7 +11,7 @@ message Record {
 message PutRecordsRequest { repeated Record Records = 1; }
 message PutRecordsResponse {}
 message GetRecordsRequest {
-  int64 FromTimestamp = 1;
+  int64 FromOffset = 1;
   repeated bytes Patterns = 2;
 }
 message GetRecordsResponse { repeated Record Records = 1; }
@@ -49,6 +49,7 @@ service Messages {
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
+  rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc ReindexTopics(ReindexTopicsRequest)
       returns (stream ReindexTopicsResponse) {}

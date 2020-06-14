@@ -166,7 +166,7 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRecordsServer) error {
-	_, err := s.state.GetRecords(in.Patterns, in.FromTimestamp, func(_ uint64, topic []byte, ts int64, payload []byte) error {
+	_, err := s.state.GetRecords(in.Patterns, in.FromOffset, func(_ uint64, topic []byte, ts int64, payload []byte) error {
 		return stream.Send(&api.GetRecordsResponse{
 			Records: []*api.Record{
 				&api.Record{
@@ -188,10 +188,30 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 }
 func (s *server) ReindexTopics(in *api.ReindexTopicsRequest, stream api.Messages_ReindexTopicsServer) error {
 	for progress := range s.state.ReindexTopics() {
-		stream.Send(&api.ReindexTopicsResponse{
+		if err := stream.Send(&api.ReindexTopicsResponse{
 			Progress: uint64(progress),
 			Total:    100,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_StreamRecordsServer) error {
+	patterns := in.Patterns
+	return s.state.Consume(stream.Context(), in.FromOffset, func(ctx context.Context, records []*api.Record) error {
+		out := []*api.Record{}
+		if len(patterns) > 0 {
+			for _, record := range records {
+				for _, pattern := range patterns {
+					if match(pattern, record.Topic) {
+						out = append(out, record)
+					}
+				}
+			}
+			return stream.Send(&api.GetRecordsResponse{Records: out})
+		}
+		return stream.Send(&api.GetRecordsResponse{Records: records})
+	})
 }

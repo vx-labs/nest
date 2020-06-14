@@ -42,31 +42,37 @@ func (s *session) run(ctx context.Context, log io.Reader) {
 	defer ticker.Stop()
 	for {
 		n, err := log.Read(buf)
-		if n == 0 || err != nil {
-			<-ticker.C
-			continue
+		if n > 0 {
+			record := &api.Record{}
+			err = proto.Unmarshal(buf[:n], record)
+			if err != nil {
+				continue
+			}
+			s.current.Records = append(s.current.Records, record)
 		}
-		record := &api.Record{}
-		err = proto.Unmarshal(buf[:n], record)
-		if err != nil {
-			continue
-		}
-		s.current.Records = append(s.current.Records, record)
-		if len(s.current.Records) >= s.maxBatchSize {
+		if n == 0 && len(s.current.Records) == 0 {
 			select {
-			case s.ch <- s.current:
-				s.current = Batch{}
+			case <-ticker.C:
 			case <-ctx.Done():
 				return
 			}
-		} else if len(s.current.Records) >= s.minBatchSize {
-			select {
-			case s.ch <- s.current:
-				s.current = Batch{}
-			case <-ctx.Done():
-				return
-			default:
-				continue
+		} else {
+			if len(s.current.Records) >= s.maxBatchSize {
+				select {
+				case s.ch <- s.current:
+					s.current = Batch{}
+				case <-ctx.Done():
+					return
+				}
+			} else if len(s.current.Records) >= s.minBatchSize {
+				select {
+				case s.ch <- s.current:
+					s.current = Batch{}
+				case <-ctx.Done():
+					return
+				default:
+					continue
+				}
 			}
 		}
 	}
