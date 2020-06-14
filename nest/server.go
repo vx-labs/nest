@@ -182,3 +182,7 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRe
 func (s *server) Serve(grpcServer *grpc.Server) {
 	api.RegisterMessagesServer(grpcServer, s)
 }
+func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*api.ListTopicsResponse, error) {
+	out := s.state.ListTopics(in.Pattern)
+	return &api.ListTopicsResponse{TopicMetadatas: out}, nil
+}

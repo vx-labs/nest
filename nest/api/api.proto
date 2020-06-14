@@ -41,11 +41,25 @@ message LoadResponse {
   int64 ProgressBytes = 2;
   int64 TotalBytes = 3;
 }
+
+message TopicMetadata {
+  bytes Name = 1;
+  uint64 MessageCount = 2;
+}
+
+message ListTopicsRequest {
+  bytes Pattern = 1;
+}
+
+message ListTopicsResponse {
+  repeated TopicMetadata TopicMetadatas = 1;
+}
 service Messages {
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
+  rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
 }
 

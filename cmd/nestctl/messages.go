@@ -29,7 +29,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "messages",
 	}
-	cmd.AddCommand(&cobra.Command{
+	put := &cobra.Command{
 		Use: "put",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
@@ -38,8 +38,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				Records: []*api.Record{
 					{
 						Timestamp: time.Now().UnixNano(),
-						Topic:     []byte("test"),
-						Payload:   []byte("test"),
+						Topic:     []byte(config.GetString("topic")),
+						Payload:   []byte(config.GetString("payload")),
 					},
 				},
 			})
@@ -48,7 +48,10 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 			cancel()
 		},
-	})
+	}
+	put.Flags().StringP("topic", "t", "test", "Message's topic")
+	put.Flags().StringP("payload", "p", "test", "Message's payload")
+	cmd.AddCommand(put)
 	get := (&cobra.Command{
 		Use: "get",
 		Run: func(cmd *cobra.Command, args []string) {

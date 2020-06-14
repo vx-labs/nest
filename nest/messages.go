@@ -38,6 +38,7 @@ type MessageLog interface {
 	SetCurrentStateOffset(v uint64)
 	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+	ListTopics(pattern []byte) []*api.TopicMetadata
 }
 
 type Snapshot struct {
@@ -311,7 +312,22 @@ func (s *messageLog) load(source io.Reader) error {
 		}
 	}
 }
-
+func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
+	s.restorelock.RLock()
+	defer s.restorelock.RUnlock()
+	if len(pattern) == 0 {
+		pattern = []byte("#")
+	}
+	topics := s.topics.Match(pattern)
+	out := make([]*api.TopicMetadata, len(topics))
+	for idx := range out {
+		out[idx] = &api.TopicMetadata{
+			Name:         topics[idx].Name,
+			MessageCount: uint64(len(topics[idx].Messages)),
+		}
+	}
+	return out
+}
 func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
