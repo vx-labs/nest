@@ -46,7 +46,7 @@ type ConsumerOptions struct {
 
 type MessageLog interface {
 	io.Closer
-	Dump(w io.Writer, lastOffset uint64, whence int) error
+	Dump(w io.Writer, fromOffset, lastOffset uint64, whence int) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
 	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
@@ -182,7 +182,8 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 		defer file.Close()
 		err = caller(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
 			stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{
-				ToOffset: snapshotDescription.MessagesOffset,
+				ToOffset:   snapshotDescription.MessagesOffset,
+				FromOffset: s.log.Offset(),
 			})
 			if err != nil {
 				return err
@@ -295,7 +296,7 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
+func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64, whence int) error {
 	encoder := json.NewEncoder(sink)
 	r, err := s.log.ReaderFrom(0)
 	defer r.Close()
@@ -306,7 +307,7 @@ func (s *messageLog) Dump(sink io.Writer, lastOffset uint64, whence int) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.GetRecords(nil, 0, func(offset uint64, topic []byte, ts int64, payload []byte) error {
+	_, err = s.GetRecords(nil, int64(fromOffset), func(offset uint64, topic []byte, ts int64, payload []byte) error {
 		if int64(offset) >= limit {
 			return io.EOF
 		}
@@ -324,15 +325,6 @@ func (s *messageLog) Load(source io.Reader) error {
 	return s.load(source)
 }
 func (s *messageLog) load(source io.Reader) error {
-	err := s.log.Delete()
-	if err != nil {
-		return err
-	}
-	log, err := commitlog.Open(s.log.Datadir(), 250)
-	if err != nil {
-		return err
-	}
-	s.log = log
 	dec := json.NewDecoder(source)
 	record := &api.Record{}
 	for {

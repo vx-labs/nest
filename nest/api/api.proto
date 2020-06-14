@@ -21,7 +21,10 @@ message DumpResponse {
   int64 ProgressBytes = 2;
   int64 TotalBytes = 3;
 }
-message SSTRequest { uint64 ToOffset = 1; };
+message SSTRequest {
+  uint64 ToOffset = 1;
+  uint64 FromOffset = 2;
+};
 message SSTResponseChunk { bytes Chunk = 1; };
 message LoadRequest { string SourceURL = 1; }
 message LoadResponse {
