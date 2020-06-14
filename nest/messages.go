@@ -449,11 +449,9 @@ func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
 	defer r.Close()
 	buf := make([]byte, 20*1000*1000)
 	for _, topic := range topics {
-		for _, record := range topic.Messages {
-			offset, err := r.Seek(int64(record), io.SeekStart)
-			if err != nil {
-				return err
-			}
+		r := commitlog.OffsetReader(topic.Messages, r)
+		idx := 0
+		for {
 			n, err := r.Read(buf)
 			if err == io.EOF {
 				continue
@@ -466,10 +464,11 @@ func (s *messageLog) GetTopics(pattern []byte, f RecordConsumer) error {
 			if err != nil {
 				return err
 			}
-			err = f(uint64(offset), record.Topic, record.Timestamp, record.Payload)
+			err = f(uint64(topic.Messages[idx]), record.Topic, record.Timestamp, record.Payload)
 			if err != nil {
 				return err
 			}
+			idx++
 		}
 	}
 	return nil
