@@ -27,7 +27,7 @@ type CommitLog interface {
 	io.Writer
 	Append(value []byte) (uint64, error)
 	Delete() error
-	ReaderFrom(offset uint64) (io.ReadSeeker, error)
+	ReaderFrom(offset uint64) (ReadSeekCloser, error)
 	Offset() uint64
 	Datadir() string
 }
@@ -153,7 +153,7 @@ func (e *commitLog) readSegment(id uint64) (Segment, error) {
 	return openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
 }
 
-func (e *commitLog) ReaderFrom(offset uint64) (io.ReadSeeker, error) {
+func (e *commitLog) ReaderFrom(offset uint64) (ReadSeekCloser, error) {
 	idx := e.lookupOffset(offset)
 	segment, err := e.readSegment(uint64(idx))
 	if err != nil {
@@ -201,6 +201,13 @@ type commitlogReader struct {
 	currentOffset  uint64
 }
 
+func (c *commitlogReader) Close() error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.currentReader = nil
+	c.currentSegment = nil
+	return c.currentSegment.Close()
+}
 func (c *commitlogReader) Seek(offset int64, whence int) (int64, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()

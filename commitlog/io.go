@@ -5,6 +5,11 @@ import (
 	"sync"
 )
 
+type ReadSeekCloser interface {
+	io.ReadCloser
+	io.Seeker
+}
+
 type readerAt struct {
 	pos uint64
 	r   io.ReaderAt
