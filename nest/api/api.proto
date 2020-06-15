@@ -36,6 +36,8 @@ message LoadResponse {
 message TopicMetadata {
   bytes Name = 1;
   uint64 MessageCount = 2;
+  Record LastRecord = 3;
+  uint64 SizeInBytes = 4;
 }
 
 message ListTopicsRequest { bytes Pattern = 1; }

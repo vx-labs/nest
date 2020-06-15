@@ -2,14 +2,16 @@ package nest
 
 import (
 	"encoding/json"
-	"errors"
 
+	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/wasp/topics"
 )
 
 type Topic struct {
-	Name     []byte
-	Messages []uint64
+	Name        []byte
+	Messages    []uint64
+	SizeInBytes uint64
+	LastRecord  *api.Record
 }
 
 func encodeTopic(t Topic) []byte {
@@ -48,41 +50,7 @@ func (t *topicsState) Match(pattern []byte) []Topic {
 	}
 	return out
 }
-func (t *topicsState) Insert(name []byte, offset uint64) error {
-	out := [][]byte{}
-	err := t.store.Match(name, &out)
-	if err != nil {
-		return err
-	}
-	if len(out) > 1 {
-		return errors.New("invalid topic provided")
-	}
-	if len(out) == 0 {
-		return t.store.Insert(name, encodeTopic(Topic{
-			Name:     name,
-			Messages: []uint64{offset},
-		}))
-	}
-	topic := decodeTopic(out[0])
-	topic.Messages = append(topic.Messages, offset)
-	return t.store.Insert(name, encodeTopic(topic))
-}
-func (t *topicsState) Set(name []byte, offsets []uint64) error {
-	out := [][]byte{}
-	err := t.store.Match(name, &out)
-	if err != nil {
-		return err
-	}
-	if len(out) > 1 {
-		return errors.New("invalid topic provided")
-	}
-	if len(out) == 0 {
-		return t.store.Insert(name, encodeTopic(Topic{
-			Name:     name,
-			Messages: offsets,
-		}))
-	}
-	topic := decodeTopic(out[0])
-	topic.Messages = offsets
-	return t.store.Insert(name, encodeTopic(topic))
+
+func (t *topicsState) Set(topic Topic) error {
+	return t.store.Insert(topic.Name, encodeTopic(topic))
 }

@@ -135,7 +135,12 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 
 			v, ok := topicValues[string(record.Topic)]
 			if !ok {
-				topicValues[string(record.Topic)] = &Topic{Name: record.Topic, Messages: []uint64{offset}}
+				topicValues[string(record.Topic)] = &Topic{
+					Name:        record.Topic,
+					Messages:    []uint64{offset},
+					SizeInBytes: uint64(len(record.Payload)),
+					LastRecord:  record,
+				}
 			} else {
 				v.Messages = append(v.Messages, offset)
 			}
@@ -143,16 +148,21 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		for _, t := range topicValues {
 			v := s.topics.Match(t.Name)
 			if len(v) == 0 {
-				s.topics.Set(t.Name, t.Messages)
+				s.topics.Set(*t)
 			} else {
 				v[0].Messages = append(v[0].Messages, t.Messages...)
-				s.topics.Set(t.Name, v[0].Messages)
+				t.Messages = v[0].Messages
+				t.SizeInBytes += v[0].SizeInBytes
+				if t.LastRecord == nil {
+					t.LastRecord = v[0].LastRecord
+				}
+				s.topics.Set(*t)
 			}
 		}
 		return nil
 	}, ConsumerOptions{
 		FromOffset:   0,
-		MaxBatchSize: 2500,
+		MaxBatchSize: 250,
 	})
 	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", s.CurrentOffset()))
 	return s, nil
@@ -259,7 +269,6 @@ func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 		if err != nil {
 			return err
 		}
-		//	s.topics.Insert(b[idx].Topic, offset)
 	}
 	s.SetCurrentStateOffset(stateOffset)
 	return nil
@@ -380,6 +389,8 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 		out[idx] = &api.TopicMetadata{
 			Name:         topics[idx].Name,
 			MessageCount: uint64(len(topics[idx].Messages)),
+			LastRecord:   topics[idx].LastRecord,
+			SizeInBytes:  topics[idx].SizeInBytes,
 		}
 	}
 	return out
