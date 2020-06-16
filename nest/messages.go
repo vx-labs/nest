@@ -322,16 +322,14 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 		return err
 	}
 	defer r.Close()
-	session := stream.NewSession(ctx, r, stream.ConsumerOptions{
-		MaxBatchSize: 10,
-		FromOffset:   int64(fromOffset),
-		EOFBehaviour: stream.EOFBehaviourExit,
-	})
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case batch, ok := <-session.Ready():
+
+	return stream.Consume(ctx, r,
+		stream.ConsumerOptions{
+			MaxBatchSize: 10,
+			FromOffset:   int64(fromOffset),
+			EOFBehaviour: stream.EOFBehaviourExit,
+		},
+		func(ctx context.Context, batch stream.Batch) error {
 			records := make([]*api.Record, len(batch.Records))
 
 			for idx, buf := range batch.Records {
@@ -355,15 +353,11 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 				}
 				err = encoder.Encode(DumpRecord{Offset: offset, Payload: payload})
 				if err != nil {
-					log.Print(err)
 					return err
 				}
 			}
-			if !ok {
-				return nil
-			}
-		}
-	}
+			return nil
+		})
 }
 
 func (s *messageLog) Load(source io.Reader) error {
@@ -431,29 +425,20 @@ func (s *messageLog) Consume(ctx context.Context, processor func(context.Context
 			return err
 		}
 	}
-	session := stream.NewSession(ctx, r, opts)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case batch := <-session.Ready():
-			records := make([]*api.Record, len(batch.Records))
+	return stream.Consume(ctx, r, opts, func(ctx context.Context, batch stream.Batch) error {
+		records := make([]*api.Record, len(batch.Records))
 
-			for idx, buf := range batch.Records {
-				record := &api.Record{}
-				err = proto.Unmarshal(buf, record)
-				if err != nil {
-					log.Print(err)
-					return err
-				}
-				records[idx] = record
-			}
-			err := processor(ctx, batch.FirstOffset, records)
+		for idx, buf := range batch.Records {
+			record := &api.Record{}
+			err = proto.Unmarshal(buf, record)
 			if err != nil {
+				log.Print(err)
 				return err
 			}
+			records[idx] = record
 		}
-	}
+		return processor(ctx, batch.FirstOffset, records)
+	})
 }
 func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
 	r, err := s.log.ReaderFrom(0)
@@ -510,37 +495,24 @@ func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor fu
 	defer r.Close()
 	for _, topic := range topics {
 		r := commitlog.OffsetReader(topic.Messages, r)
-		session := stream.NewSession(ctx, r, stream.ConsumerOptions{
+		err := stream.Consume(ctx, r, stream.ConsumerOptions{
 			MaxBatchSize: 10,
 			FromOffset:   0,
 			EOFBehaviour: stream.EOFBehaviourExit,
-		})
-	loop:
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case batch, ok := <-session.Ready():
-				records := make([]*api.Record, len(batch.Records))
-				for idx, buf := range batch.Records {
-					record := &api.Record{}
-					err = proto.Unmarshal(buf, record)
-					if err != nil {
-						return err
-					}
-					records[idx] = record
-				}
-				err := processor(ctx, batch.FirstOffset, records)
+		}, func(ctx context.Context, batch stream.Batch) error {
+			records := make([]*api.Record, len(batch.Records))
+			for idx, buf := range batch.Records {
+				record := &api.Record{}
+				err = proto.Unmarshal(buf, record)
 				if err != nil {
-					if err == io.EOF {
-						return nil
-					}
 					return err
 				}
-				if !ok {
-					break loop
-				}
+				records[idx] = record
 			}
+			return processor(ctx, batch.FirstOffset, records)
+		})
+		if err != nil {
+			return err
 		}
 	}
 	return nil
