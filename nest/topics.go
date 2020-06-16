@@ -1,7 +1,9 @@
 package nest
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/wasp/topics"
@@ -54,4 +56,55 @@ func (t *topicsState) Match(pattern []byte) []Topic {
 
 func (t *topicsState) Set(topic Topic) error {
 	return t.store.Insert(topic.Name, encodeTopic(topic))
+}
+
+type topicAggregate struct {
+	topics *topicsState
+}
+
+func (s *topicAggregate) Processor() RecordProcessor {
+	return func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
+
+		topicValues := map[string]*Topic{}
+		for idx, record := range records {
+			offset := firstOffset + uint64(idx)
+
+			v, ok := topicValues[string(record.Topic)]
+			if !ok {
+				topicValues[string(record.Topic)] = &Topic{
+					Name:               record.Topic,
+					Messages:           []uint64{offset},
+					SizeInBytes:        uint64(len(record.Payload)),
+					LastRecord:         record,
+					GuessedContentType: http.DetectContentType(record.Payload),
+				}
+			} else {
+				v.Messages = append(v.Messages, offset)
+				v.SizeInBytes += uint64(len(record.Payload))
+				v.LastRecord = record
+				contentType := http.DetectContentType(record.Payload)
+				if v.GuessedContentType != contentType {
+					v.GuessedContentType = "application/octet-stream"
+				}
+			}
+		}
+		for _, t := range topicValues {
+			v := s.topics.Match(t.Name)
+			if len(v) == 0 {
+				s.topics.Set(*t)
+			} else {
+				v[0].Messages = append(v[0].Messages, t.Messages...)
+				t.Messages = v[0].Messages
+				t.SizeInBytes += v[0].SizeInBytes
+				if t.LastRecord == nil {
+					t.LastRecord = v[0].LastRecord
+				}
+				if t.GuessedContentType != v[0].GuessedContentType {
+					t.GuessedContentType = "application/octet-stream"
+				}
+				s.topics.Set(*t)
+			}
+		}
+		return nil
+	}
 }
