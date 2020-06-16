@@ -20,6 +20,8 @@ func WithEOFBehaviour(v eofBehaviour) consumerOpts {
 	return func(c *ConsumerOpts) { c.EOFBehaviour = v }
 }
 
+// TODO: WithCheckpoint(SnapshotStorage, interval) consumerOpts ?
+
 type Consumer interface {
 	Consume(ctx context.Context, r io.ReadSeeker, processor Processor) error
 }
