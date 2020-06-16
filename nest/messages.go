@@ -30,22 +30,6 @@ var (
 
 type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
 
-type eofBehaviour int
-
-const (
-	// EOFBehaviourPoll will make the session poll for new records after an EOF error is received
-	EOFBehaviourPoll eofBehaviour = 1 << iota
-	// EOFBehaviourExit wil make the session exit when EOF is received
-	EOFBehaviourExit eofBehaviour = 1 << iota
-)
-
-// ConsumerOptions describes stream session preferences
-type ConsumerOptions struct {
-	MaxBatchSize int
-	FromOffset   int64
-	EOFBehaviour eofBehaviour
-}
-
 type MessageLog interface {
 	io.Closer
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
