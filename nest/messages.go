@@ -133,7 +133,6 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		topicValues := map[string]*Topic{}
 		for idx, record := range batch.Records {
 			offset := batch.FirstOffset + uint64(idx)
-
 			v, ok := topicValues[string(record.Topic)]
 			if !ok {
 				topicValues[string(record.Topic)] = &Topic{

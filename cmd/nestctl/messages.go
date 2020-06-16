@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -29,12 +30,16 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
 			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
+			payload, err := ioutil.ReadAll(cmd.InOrStdin())
+			if len(payload) == 0 {
+				payload = []byte(config.GetString("payload"))
+			}
+			_, err = api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
 				Records: []*api.Record{
 					{
 						Timestamp: time.Now().UnixNano(),
 						Topic:     []byte(config.GetString("topic")),
-						Payload:   []byte(config.GetString("payload")),
+						Payload:   payload,
 					},
 				},
 			})

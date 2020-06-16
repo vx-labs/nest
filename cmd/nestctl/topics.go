@@ -13,10 +13,9 @@ import (
 const topicMetadataTemplate = `• {{ .Name | bytesToString | green }}
   Storage: {{ .MessageCount | bold }} messages - {{ .SizeInBytes | bold }} stored bytes
   Detected content type: "{{ .GuessedContentType | bold }}"
-  Last Record:
-    Topic: {{ .LastRecord.Topic | bytesToString | bold }}
-    Payload: {{ .LastRecord.Payload | bytesToString | bold }}
-`
+{{- if eq .GuessedContentType "text/plain; charset=utf-8" }}
+  Last Record: {{ .LastRecord.Payload | bytesToString | bold }}
+{{- end }}`
 
 func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
