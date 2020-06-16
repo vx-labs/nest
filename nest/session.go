@@ -3,10 +3,8 @@ package nest
 import (
 	"context"
 	"io"
+	"log"
 	"time"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/vx-labs/nest/nest/api"
 )
 
 type eofBehaviour int
@@ -27,7 +25,7 @@ type ConsumerOptions struct {
 
 type Batch struct {
 	FirstOffset uint64
-	Records     []*api.Record
+	Records     [][]byte
 }
 type session struct {
 	maxBatchSize int
@@ -45,10 +43,10 @@ func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Se
 	s := &session{
 		ch:           make(chan Batch),
 		maxBatchSize: opts.MaxBatchSize,
-		minBatchSize: 0,
+		minBatchSize: 10,
 		current: Batch{
 			FirstOffset: uint64(offset),
-			Records:     []*api.Record{},
+			Records:     [][]byte{},
 		},
 	}
 	go s.run(ctx, log, opts)
@@ -66,44 +64,48 @@ func (s *session) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
-			record := &api.Record{}
-			err = proto.Unmarshal(buf[:n], record)
-			if err != nil {
-				continue
-			}
-			s.current.Records = append(s.current.Records, record)
+			newRecord := make([]byte, n)
+			copy(newRecord, buf[:n])
+			s.current.Records = append(s.current.Records, newRecord)
 		}
-		if n == 0 && len(s.current.Records) == 0 {
-			if opts.EOFBehaviour == EOFBehaviourExit {
-				return
-			}
+		if len(s.current.Records) >= s.maxBatchSize {
 			select {
-			case <-ticker.C:
+			case s.ch <- s.current:
+				s.current = Batch{
+					FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+					Records:     [][]byte{},
+				}
 			case <-ctx.Done():
 				return
 			}
-		} else {
-			if len(s.current.Records) >= s.maxBatchSize {
-				select {
-				case s.ch <- s.current:
-					s.current = Batch{
-						FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-					}
-				case <-ctx.Done():
-					return
+		} else if len(s.current.Records) > s.minBatchSize || len(s.current.Records) > 0 && n == 0 {
+			select {
+			case s.ch <- s.current:
+				s.current = Batch{
+					FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+					Records:     [][]byte{},
 				}
-			} else if len(s.current.Records) > s.minBatchSize {
-				select {
-				case s.ch <- s.current:
-					s.current = Batch{
-						FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-					}
-				case <-ctx.Done():
-					return
-				default:
-					continue
-				}
+			case <-ctx.Done():
+				return
+			default:
+				continue
 			}
 		}
+		if err != nil {
+			if err == io.EOF {
+				if opts.EOFBehaviour == EOFBehaviourExit {
+					return
+				}
+				select {
+				case <-ticker.C:
+				case <-ctx.Done():
+					return
+				}
+			} else {
+				log.Print(err)
+			}
+			return
+		}
+
 	}
 }

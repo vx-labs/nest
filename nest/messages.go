@@ -42,8 +42,8 @@ type MessageLog interface {
 	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error
-	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, Batch) error) error
+	Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts ConsumerOptions) error
+	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error
 }
 
 type Snapshot struct {
@@ -113,10 +113,11 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		stateOffsetFd: fd,
 		topics:        NewTopicState(),
 	}
-	go s.Consume(ctx, func(ctx context.Context, batch Batch) error {
+	go s.Consume(ctx, func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
 		topicValues := map[string]*Topic{}
-		for idx, record := range batch.Records {
-			offset := batch.FirstOffset + uint64(idx)
+		for idx, record := range records {
+			offset := firstOffset + uint64(idx)
+
 			v, ok := topicValues[string(record.Topic)]
 			if !ok {
 				topicValues[string(record.Topic)] = &Topic{
@@ -326,7 +327,18 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 		case <-ctx.Done():
 			return nil
 		case batch, ok := <-session.Ready():
-			for idx, record := range batch.Records {
+			records := make([]*api.Record, len(batch.Records))
+
+			for idx, buf := range batch.Records {
+				record := &api.Record{}
+				err = proto.Unmarshal(buf, record)
+				if err != nil {
+					return err
+				}
+				records[idx] = record
+			}
+			for idx, record := range records {
+
 				offset := batch.FirstOffset + uint64(idx)
 				if offset >= uint64(limit) {
 					return nil
@@ -395,7 +407,7 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	defer s.restorelock.RUnlock()
 	return s.getRecords(patterns, fromOffset, f)
 }
-func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, Batch) error, opts ConsumerOptions) error {
+func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts ConsumerOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	r, err := s.log.ReaderFrom(0)
@@ -420,7 +432,18 @@ func (s *messageLog) Consume(ctx context.Context, processor func(context.Context
 		case <-ctx.Done():
 			return nil
 		case batch := <-session.Ready():
-			err := processor(ctx, batch)
+			records := make([]*api.Record, len(batch.Records))
+
+			for idx, buf := range batch.Records {
+				record := &api.Record{}
+				err = proto.Unmarshal(buf, record)
+				if err != nil {
+					log.Print(err)
+					return err
+				}
+				records[idx] = record
+			}
+			err := processor(ctx, batch.FirstOffset, records)
 			if err != nil {
 				return err
 			}
@@ -470,7 +493,7 @@ func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	}
 }
 
-func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, Batch) error) error {
+func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error {
 
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
@@ -489,7 +512,16 @@ func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor fu
 			case <-ctx.Done():
 				return nil
 			case batch, ok := <-session.Ready():
-				err := processor(ctx, batch)
+				records := make([]*api.Record, len(batch.Records))
+				for idx, buf := range batch.Records {
+					record := &api.Record{}
+					err = proto.Unmarshal(buf, record)
+					if err != nil {
+						return err
+					}
+					records[idx] = record
+				}
+				err := processor(ctx, batch.FirstOffset, records)
 				if err != nil {
 					if err == io.EOF {
 						return nil
