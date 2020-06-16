@@ -8,10 +8,11 @@ import (
 )
 
 type Topic struct {
-	Name        []byte
-	Messages    []uint64
-	SizeInBytes uint64
-	LastRecord  *api.Record
+	Name               []byte
+	Messages           []uint64
+	SizeInBytes        uint64
+	LastRecord         *api.Record
+	GuessedContentType string
 }
 
 func encodeTopic(t Topic) []byte {

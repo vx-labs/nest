@@ -13,6 +13,7 @@ import (
 const topicMetadataTemplate = `• {{ .Name | bytesToString | green }}
   {{ .MessageCount | bold }} messages
   {{ .SizeInBytes | bold }} stored bytes
+  Detected content type: "{{ .GuessedContentType | bold }}"
   Last Record:
     Topic: {{ .LastRecord.Topic | bytesToString | bold }}
     Payload: {{ .LastRecord.Payload | bytesToString | bold }}

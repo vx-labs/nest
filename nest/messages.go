@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"sync"
@@ -136,13 +137,20 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 			v, ok := topicValues[string(record.Topic)]
 			if !ok {
 				topicValues[string(record.Topic)] = &Topic{
-					Name:        record.Topic,
-					Messages:    []uint64{offset},
-					SizeInBytes: uint64(len(record.Payload)),
-					LastRecord:  record,
+					Name:               record.Topic,
+					Messages:           []uint64{offset},
+					SizeInBytes:        uint64(len(record.Payload)),
+					LastRecord:         record,
+					GuessedContentType: http.DetectContentType(record.Payload),
 				}
 			} else {
 				v.Messages = append(v.Messages, offset)
+				v.SizeInBytes += uint64(len(record.Payload))
+				v.LastRecord = record
+				contentType := http.DetectContentType(record.Payload)
+				if v.GuessedContentType != contentType {
+					v.GuessedContentType = "application/octet-stream"
+				}
 			}
 		}
 		for _, t := range topicValues {
@@ -155,6 +163,9 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 				t.SizeInBytes += v[0].SizeInBytes
 				if t.LastRecord == nil {
 					t.LastRecord = v[0].LastRecord
+				}
+				if t.GuessedContentType != v[0].GuessedContentType {
+					t.GuessedContentType = "application/octet-stream"
 				}
 				s.topics.Set(*t)
 			}
@@ -387,10 +398,11 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	out := make([]*api.TopicMetadata, len(topics))
 	for idx := range out {
 		out[idx] = &api.TopicMetadata{
-			Name:         topics[idx].Name,
-			MessageCount: uint64(len(topics[idx].Messages)),
-			LastRecord:   topics[idx].LastRecord,
-			SizeInBytes:  topics[idx].SizeInBytes,
+			Name:               topics[idx].Name,
+			MessageCount:       uint64(len(topics[idx].Messages)),
+			LastRecord:         topics[idx].LastRecord,
+			SizeInBytes:        topics[idx].SizeInBytes,
+			GuessedContentType: topics[idx].GuessedContentType,
 		}
 	}
 	return out
