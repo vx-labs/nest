@@ -8,8 +8,8 @@ import (
 // Processor is a function that will process stream records
 type Processor func(context.Context, Batch) error
 
-// Consume starts a poller, and calls Processor on each stream records
-func Consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts, processor Processor) error {
+// consume starts a poller, and calls Processor on each stream records
+func consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts, processor Processor) error {
 	poller := newPoller(ctx, r, opts)
 	for {
 		select {

@@ -37,5 +37,5 @@ func NewConsumer(opts ...consumerOpts) Consumer {
 }
 
 func (c consumer) Consume(ctx context.Context, r io.ReadSeeker, processor Processor) error {
-	return Consume(ctx, r, c.opts, processor)
+	return consume(ctx, r, c.opts, processor)
 }
