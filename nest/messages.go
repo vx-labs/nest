@@ -18,6 +18,7 @@ import (
 	"github.com/tysontate/gommap"
 	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -42,7 +43,7 @@ type MessageLog interface {
 	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts ConsumerOptions) error
+	Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts stream.ConsumerOptions) error
 	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error
 }
 
@@ -155,7 +156,7 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 			}
 		}
 		return nil
-	}, ConsumerOptions{
+	}, stream.ConsumerOptions{
 		FromOffset:   0,
 		MaxBatchSize: 250,
 	})
@@ -321,7 +322,11 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 		return err
 	}
 	defer r.Close()
-	session := NewSession(ctx, r, ConsumerOptions{MaxBatchSize: 10, FromOffset: int64(fromOffset), EOFBehaviour: EOFBehaviourExit})
+	session := stream.NewSession(ctx, r, stream.ConsumerOptions{
+		MaxBatchSize: 10,
+		FromOffset:   int64(fromOffset),
+		EOFBehaviour: stream.EOFBehaviourExit,
+	})
 	for {
 		select {
 		case <-ctx.Done():
@@ -407,7 +412,7 @@ func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordCon
 	defer s.restorelock.RUnlock()
 	return s.getRecords(patterns, fromOffset, f)
 }
-func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts ConsumerOptions) error {
+func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts stream.ConsumerOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	r, err := s.log.ReaderFrom(0)
@@ -426,7 +431,7 @@ func (s *messageLog) Consume(ctx context.Context, processor func(context.Context
 			return err
 		}
 	}
-	session := NewSession(ctx, r, opts)
+	session := stream.NewSession(ctx, r, opts)
 	for {
 		select {
 		case <-ctx.Done():
@@ -505,7 +510,11 @@ func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor fu
 	defer r.Close()
 	for _, topic := range topics {
 		r := commitlog.OffsetReader(topic.Messages, r)
-		session := NewSession(ctx, r, ConsumerOptions{MaxBatchSize: 10, FromOffset: 0, EOFBehaviour: EOFBehaviourExit})
+		session := stream.NewSession(ctx, r, stream.ConsumerOptions{
+			MaxBatchSize: 10,
+			FromOffset:   0,
+			EOFBehaviour: stream.EOFBehaviourExit,
+		})
 	loop:
 		for {
 			select {

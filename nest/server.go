@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -188,9 +189,9 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 	return &api.ListTopicsResponse{TopicMetadatas: out}, nil
 }
 
-func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_StreamRecordsServer) error {
+func (s *server) StreamRecords(in *api.GetRecordsRequest, client api.Messages_StreamRecordsServer) error {
 	patterns := in.Patterns
-	return s.state.Consume(stream.Context(), func(ctx context.Context, _ uint64, batch []*api.Record) error {
+	return s.state.Consume(client.Context(), func(ctx context.Context, _ uint64, batch []*api.Record) error {
 		out := []*api.Record{}
 		if len(patterns) > 0 {
 			for _, record := range batch {
@@ -200,17 +201,17 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 					}
 				}
 			}
-			return stream.Send(&api.GetRecordsResponse{Records: out})
+			return client.Send(&api.GetRecordsResponse{Records: out})
 		}
-		return stream.Send(&api.GetRecordsResponse{Records: batch})
-	}, ConsumerOptions{
+		return client.Send(&api.GetRecordsResponse{Records: batch})
+	}, stream.ConsumerOptions{
 		FromOffset:   in.FromOffset,
 		MaxBatchSize: 250,
 	})
 }
 
-func (s *server) GetTopics(in *api.GetTopicsRequest, stream api.Messages_GetTopicsServer) error {
-	return s.state.GetTopics(stream.Context(), in.Pattern, func(ctx context.Context, _ uint64, batch []*api.Record) error {
-		return stream.Send(&api.GetTopicsResponse{Records: batch})
+func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {
+	return s.state.GetTopics(client.Context(), in.Pattern, func(ctx context.Context, _ uint64, batch []*api.Record) error {
+		return client.Send(&api.GetTopicsResponse{Records: batch})
 	})
 }
