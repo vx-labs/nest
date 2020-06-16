@@ -29,7 +29,7 @@ var (
 	encoding                  = binary.BigEndian
 )
 
-type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
+type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type StateRecorder interface {
@@ -44,10 +44,9 @@ type MessageLog interface {
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
-	CurrentOffset() uint64
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error
+	GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error
 }
 
 type Snapshot struct {
@@ -66,15 +65,6 @@ type messageLog struct {
 	log           commitlog.CommitLog
 	topics        *topicsState
 }
-
-type compatLogger struct {
-	l *zap.Logger
-}
-
-func (c *compatLogger) Debugf(string, ...interface{})   {}
-func (c *compatLogger) Infof(string, ...interface{})    {}
-func (c *compatLogger) Warningf(string, ...interface{}) {}
-func (c *compatLogger) Errorf(string, ...interface{})   {}
 
 func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, error) {
 	L(ctx).Debug("opening commit log")
@@ -163,8 +153,6 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", s.CurrentOffset()))
 	return s, nil
 }
-
-type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 
 func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
 	s.restorelock.Lock()
@@ -425,7 +413,7 @@ func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error)
 	}
 }
 
-func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error {
+func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	topics := s.topics.Match(pattern)
