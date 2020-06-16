@@ -9,7 +9,7 @@ import (
 type Processor func(context.Context, Batch) error
 
 // Consume starts a poller, and calls Processor on each stream records
-func Consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOptions, processor Processor) error {
+func Consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts, processor Processor) error {
 	poller := newPoller(ctx, r, opts)
 	for {
 		select {

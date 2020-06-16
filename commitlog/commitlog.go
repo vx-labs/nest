@@ -27,6 +27,7 @@ type CommitLog interface {
 	io.Writer
 	Append(value []byte) (uint64, error)
 	Delete() error
+	Reader() ReadSeekCloser
 	ReaderFrom(offset uint64) (ReadSeekCloser, error)
 	Offset() uint64
 	Datadir() string
@@ -153,6 +154,15 @@ func (e *commitLog) readSegment(id uint64) (Segment, error) {
 	return openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
 }
 
+func (e *commitLog) Reader() ReadSeekCloser {
+	return &commitlogReader{
+		currentOffset:  0,
+		log:            e,
+		currentSegment: nil,
+		segmentSize:    e.segmentMaxRecordCount,
+		currentReader:  nil,
+	}
+}
 func (e *commitLog) ReaderFrom(offset uint64) (ReadSeekCloser, error) {
 	idx := e.lookupOffset(offset)
 	segment, err := e.readSegment(uint64(idx))

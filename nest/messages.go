@@ -30,20 +30,23 @@ var (
 )
 
 type RecordConsumer func(offset uint64, topic []byte, ts int64, payload []byte) error
+type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
+type StateRecorder interface {
+	CurrentStateOffset() uint64
+	SetCurrentStateOffset(v uint64)
+	Snapshot() ([]byte, error)
+}
 type MessageLog interface {
+	StateRecorder
 	io.Closer
+	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
-	GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error)
-	CurrentStateOffset() uint64
 	CurrentOffset() uint64
-	SetCurrentStateOffset(v uint64)
-	Snapshot() ([]byte, error)
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts stream.ConsumerOptions) error
 	GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error
 }
 
@@ -114,7 +117,7 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 		stateOffsetFd: fd,
 		topics:        NewTopicState(),
 	}
-	go s.Consume(ctx, func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
+	go s.Consume(ctx, stream.NewConsumer(), func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
 		topicValues := map[string]*Topic{}
 		for idx, record := range records {
 			offset := firstOffset + uint64(idx)
@@ -156,9 +159,6 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 			}
 		}
 		return nil
-	}, stream.ConsumerOptions{
-		FromOffset:   0,
-		MaxBatchSize: 250,
 	})
 	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", s.CurrentOffset()))
 	return s, nil
@@ -304,11 +304,8 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	encoder := json.NewEncoder(sink)
-	r, err := s.log.ReaderFrom(0)
+	r := s.log.Reader()
 	defer r.Close()
-	if err != nil {
-		return err
-	}
 	if lastOffset == 0 {
 		lastOffset = s.log.Offset()
 	}
@@ -317,32 +314,16 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.Seek(int64(fromOffset), io.SeekStart)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	return stream.Consume(ctx, r,
-		stream.ConsumerOptions{
-			MaxBatchSize: 10,
-			FromOffset:   int64(fromOffset),
-			EOFBehaviour: stream.EOFBehaviourExit,
-		},
-		func(ctx context.Context, batch stream.Batch) error {
-			records := make([]*api.Record, len(batch.Records))
-
-			for idx, buf := range batch.Records {
-				record := &api.Record{}
-				err = proto.Unmarshal(buf, record)
-				if err != nil {
-					return err
-				}
-				records[idx] = record
-			}
+	consumer := stream.NewConsumer(
+		stream.FromOffset(int64(fromOffset)),
+		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+		stream.WithMaxBatchSize(10),
+	)
+	return consumer.Consume(ctx, r,
+		RecordDecoder(func(ctx context.Context, fromOffset uint64, records []*api.Record) error {
 			for idx, record := range records {
 
-				offset := batch.FirstOffset + uint64(idx)
+				offset := fromOffset + uint64(idx)
 				if offset >= uint64(limit) {
 					return nil
 				}
@@ -357,7 +338,7 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 				}
 			}
 			return nil
-		})
+		}))
 }
 
 func (s *messageLog) Load(source io.Reader) error {
@@ -401,116 +382,61 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	}
 	return out
 }
-func (s *messageLog) GetRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-	return s.getRecords(patterns, fromOffset, f)
-}
-func (s *messageLog) Consume(ctx context.Context, processor func(context.Context, uint64, []*api.Record) error, opts stream.ConsumerOptions) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	r, err := s.log.ReaderFrom(0)
-	if err != nil {
-		return err
-	}
+func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
+	r := s.log.Reader()
 	defer r.Close()
-	if opts.FromOffset > 0 {
-		_, err = r.Seek(opts.FromOffset, io.SeekStart)
-		if err != nil {
-			return err
-		}
-	} else if opts.FromOffset < 0 {
-		_, err = r.Seek(opts.FromOffset, io.SeekEnd)
-		if err != nil {
-			return err
-		}
-	}
-	return stream.Consume(ctx, r, opts, func(ctx context.Context, batch stream.Batch) error {
-		records := make([]*api.Record, len(batch.Records))
+	return consumer.Consume(ctx, r, RecordDecoder(processor))
+}
 
+func RecordMatcher(patterns [][]byte, f RecordProcessor) RecordProcessor {
+	return func(ctx context.Context, offset uint64, records []*api.Record) error {
+		if len(patterns) > 0 {
+			for idx, record := range records {
+				for _, pattern := range patterns {
+					if match(pattern, record.Topic) {
+						err := f(ctx, offset+uint64(idx), []*api.Record{record})
+						if err != nil {
+							return err
+						}
+						break
+					}
+				}
+			}
+		} else {
+			f(ctx, offset, records)
+		}
+		return nil
+	}
+}
+
+// RecordDecoder returns a stream.Processor decoding api.Record and passing them to the provided callback function
+func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error) stream.Processor {
+	return func(ctx context.Context, batch stream.Batch) error {
+		records := make([]*api.Record, len(batch.Records))
 		for idx, buf := range batch.Records {
 			record := &api.Record{}
-			err = proto.Unmarshal(buf, record)
+			err := proto.Unmarshal(buf, record)
 			if err != nil {
-				log.Print(err)
 				return err
 			}
 			records[idx] = record
 		}
 		return processor(ctx, batch.FirstOffset, records)
-	})
-}
-func (s *messageLog) getRecords(patterns [][]byte, fromOffset int64, f RecordConsumer) (int64, error) {
-	r, err := s.log.ReaderFrom(0)
-	if err != nil {
-		return fromOffset, err
-	}
-	defer r.Close()
-	current, err := r.Seek(fromOffset, io.SeekStart)
-	if err != nil {
-		return current, err
-	}
-	buf := make([]byte, 20*1000*1000)
-	for {
-		n, err := r.Read(buf)
-		if err == io.EOF {
-			return current, nil
-		}
-		if err != nil {
-			return current, err
-		}
-		record := &api.Record{}
-		err = proto.Unmarshal(buf[:n], record)
-		if err != nil {
-			return current, err
-		}
-		if len(patterns) > 0 {
-			for _, pattern := range patterns {
-				if match(pattern, record.Topic) {
-					err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
-					if err != nil {
-						return current, err
-					}
-				}
-			}
-		} else {
-			err = f(uint64(current), record.Topic, record.Timestamp, record.Payload)
-			if err != nil {
-				return current, err
-			}
-		}
-		current++
 	}
 }
 
 func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor func(context.Context, uint64, []*api.Record) error) error {
-
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
 	topics := s.topics.Match(pattern)
-	r, err := s.log.ReaderFrom(0)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
+	logReader := s.log.Reader()
+	defer logReader.Close()
+
+	consumer := stream.NewConsumer(stream.WithMaxBatchSize(10), stream.WithEOFBehaviour(stream.EOFBehaviourExit))
+
 	for _, topic := range topics {
-		r := commitlog.OffsetReader(topic.Messages, r)
-		err := stream.Consume(ctx, r, stream.ConsumerOptions{
-			MaxBatchSize: 10,
-			FromOffset:   0,
-			EOFBehaviour: stream.EOFBehaviourExit,
-		}, func(ctx context.Context, batch stream.Batch) error {
-			records := make([]*api.Record, len(batch.Records))
-			for idx, buf := range batch.Records {
-				record := &api.Record{}
-				err = proto.Unmarshal(buf, record)
-				if err != nil {
-					return err
-				}
-				records[idx] = record
-			}
-			return processor(ctx, batch.FirstOffset, records)
-		})
+		r := commitlog.OffsetReader(topic.Messages, logReader)
+		err := consumer.Consume(ctx, r, RecordDecoder(processor))
 		if err != nil {
 			return err
 		}

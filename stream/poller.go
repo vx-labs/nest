@@ -16,8 +16,8 @@ const (
 	EOFBehaviourExit eofBehaviour = 1 << iota
 )
 
-// ConsumerOptions describes stream session preferences
-type ConsumerOptions struct {
+// ConsumerOpts describes stream session preferences
+type ConsumerOpts struct {
 	MaxBatchSize int
 	FromOffset   int64
 	EOFBehaviour eofBehaviour
@@ -38,8 +38,14 @@ type Poller interface {
 	Ready() <-chan Batch
 }
 
-func newPoller(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Poller {
-	offset, _ := log.Seek(opts.FromOffset, io.SeekStart)
+func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
+	var offset int64
+	if opts.FromOffset > 0 {
+		offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
+	} else if opts.FromOffset < 0 {
+		offset, _ = r.Seek(opts.FromOffset, io.SeekEnd)
+	}
+
 	s := &poller{
 		ch:           make(chan Batch),
 		maxBatchSize: opts.MaxBatchSize,
@@ -49,14 +55,14 @@ func newPoller(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Pol
 			Records:     [][]byte{},
 		},
 	}
-	go s.run(ctx, log, opts)
+	go s.run(ctx, r, opts)
 	return s
 }
 
 func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
-func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
+func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOpts) {
 	defer close(s.ch)
 	buf := make([]byte, 20*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)

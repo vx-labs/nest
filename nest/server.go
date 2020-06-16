@@ -166,19 +166,15 @@ func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error
 func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*api.PutRecordsResponse, error) {
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
-func (s *server) GetRecords(in *api.GetRecordsRequest, stream api.Messages_GetRecordsServer) error {
-	_, err := s.state.GetRecords(in.Patterns, in.FromOffset, func(_ uint64, topic []byte, ts int64, payload []byte) error {
-		return stream.Send(&api.GetRecordsResponse{
-			Records: []*api.Record{
-				&api.Record{
-					Topic:     topic,
-					Timestamp: ts,
-					Payload:   payload,
-				},
-			},
-		})
-	})
-	return err
+func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRecordsServer) error {
+	consumer := stream.NewConsumer(
+		stream.FromOffset(in.FromOffset),
+		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+		stream.WithMaxBatchSize(250),
+	)
+	return s.state.Consume(client.Context(), consumer, RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
+		return client.Send(&api.GetRecordsResponse{Records: batch})
+	}))
 }
 
 func (s *server) Serve(grpcServer *grpc.Server) {
@@ -190,24 +186,14 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 }
 
 func (s *server) StreamRecords(in *api.GetRecordsRequest, client api.Messages_StreamRecordsServer) error {
-	patterns := in.Patterns
-	return s.state.Consume(client.Context(), func(ctx context.Context, _ uint64, batch []*api.Record) error {
-		out := []*api.Record{}
-		if len(patterns) > 0 {
-			for _, record := range batch {
-				for _, pattern := range patterns {
-					if match(pattern, record.Topic) {
-						out = append(out, record)
-					}
-				}
-			}
-			return client.Send(&api.GetRecordsResponse{Records: out})
-		}
+	consumer := stream.NewConsumer(
+		stream.FromOffset(in.FromOffset),
+		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+		stream.WithMaxBatchSize(250),
+	)
+	return s.state.Consume(client.Context(), consumer, RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
 		return client.Send(&api.GetRecordsResponse{Records: batch})
-	}, stream.ConsumerOptions{
-		FromOffset:   in.FromOffset,
-		MaxBatchSize: 250,
-	})
+	}))
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {
