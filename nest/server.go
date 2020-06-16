@@ -172,9 +172,13 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
 		stream.WithMaxBatchSize(250),
 	)
-	return s.state.Consume(client.Context(), consumer, RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
-		return client.Send(&api.GetRecordsResponse{Records: batch})
-	}))
+	return s.state.Consume(func(r io.ReadSeeker) error {
+		return consumer.Consume(client.Context(), r,
+			RecordDecoder(
+				RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
+					return client.Send(&api.GetRecordsResponse{Records: batch})
+				})))
+	})
 }
 
 func (s *server) Serve(grpcServer *grpc.Server) {
@@ -191,9 +195,13 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, client api.Messages_St
 		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 		stream.WithMaxBatchSize(250),
 	)
-	return s.state.Consume(client.Context(), consumer, RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
-		return client.Send(&api.GetRecordsResponse{Records: batch})
-	}))
+	return s.state.Consume(func(r io.ReadSeeker) error {
+		return consumer.Consume(client.Context(), r,
+			RecordDecoder(
+				RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
+					return client.Send(&api.GetRecordsResponse{Records: batch})
+				})))
+	})
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {

@@ -40,7 +40,7 @@ type StateRecorder interface {
 type MessageLog interface {
 	StateRecorder
 	io.Closer
-	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
+	Consume(f func(r io.ReadSeeker) error) error
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
@@ -63,51 +63,16 @@ type messageLog struct {
 	stateOffset   gommap.MMap
 	stateOffsetFd *os.File
 	log           commitlog.CommitLog
-	topics        *topicsState
+	topics        *topicAggregate
 }
 
-func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, error) {
-	L(ctx).Debug("opening commit log")
-	start := time.Now()
-	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
-	if err != nil {
-		return nil, err
-	}
-	L(ctx).Debug("commit log opened", zap.Duration("elapsed_time", time.Since(start)))
-	statePath := path.Join(datadir, "messages.state")
-	var fd *os.File
+type topicAggregate struct {
+	topics *topicsState
+}
 
-	if _, err := os.Stat(statePath); os.IsNotExist(err) {
-		fd, err = os.OpenFile(statePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0650)
-		if err != nil {
-			return nil, err
-		}
-		err = fd.Truncate(8)
-		if err != nil {
-			fd.Close()
-			os.Remove(statePath)
-			return nil, err
-		}
-	} else {
-		fd, err = os.OpenFile(statePath, os.O_RDWR, 0650)
-		if err != nil {
-			return nil, err
-		}
-	}
-	mmapedData, err := gommap.Map(fd.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED)
-	if err != nil {
-		return nil, err
-	}
+func (s *topicAggregate) Processor() RecordProcessor {
+	return func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
 
-	s := &messageLog{
-		id:            id,
-		datadir:       datadir,
-		log:           log,
-		stateOffset:   mmapedData,
-		stateOffsetFd: fd,
-		topics:        NewTopicState(),
-	}
-	go s.Consume(ctx, stream.NewConsumer(), func(ctx context.Context, firstOffset uint64, records []*api.Record) error {
 		topicValues := map[string]*Topic{}
 		for idx, record := range records {
 			offset := firstOffset + uint64(idx)
@@ -149,6 +114,53 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 			}
 		}
 		return nil
+	}
+}
+
+func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, error) {
+	L(ctx).Debug("opening commit log")
+	start := time.Now()
+	log, err := commitlog.Open(path.Join(datadir, "messages"), 250)
+	if err != nil {
+		return nil, err
+	}
+	L(ctx).Debug("commit log opened", zap.Duration("elapsed_time", time.Since(start)))
+	statePath := path.Join(datadir, "messages.state")
+	var fd *os.File
+
+	if _, err := os.Stat(statePath); os.IsNotExist(err) {
+		fd, err = os.OpenFile(statePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0650)
+		if err != nil {
+			return nil, err
+		}
+		err = fd.Truncate(8)
+		if err != nil {
+			fd.Close()
+			os.Remove(statePath)
+			return nil, err
+		}
+	} else {
+		fd, err = os.OpenFile(statePath, os.O_RDWR, 0650)
+		if err != nil {
+			return nil, err
+		}
+	}
+	mmapedData, err := gommap.Map(fd.Fd(), gommap.PROT_READ|gommap.PROT_WRITE, gommap.MAP_SHARED)
+	if err != nil {
+		return nil, err
+	}
+
+	s := &messageLog{
+		id:            id,
+		datadir:       datadir,
+		log:           log,
+		stateOffset:   mmapedData,
+		stateOffsetFd: fd,
+		topics:        &topicAggregate{topics: NewTopicState()},
+	}
+	go s.Consume(func(r io.ReadSeeker) error {
+		consumer := stream.NewConsumer()
+		return consumer.Consume(ctx, r, RecordDecoder(s.topics.Processor()))
 	})
 	L(ctx).Info("loaded message log", zap.Uint64("current_log_offset", s.CurrentOffset()))
 	return s, nil
@@ -357,7 +369,7 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	if len(pattern) == 0 {
 		pattern = []byte("#")
 	}
-	topics := s.topics.Match(pattern)
+	topics := s.topics.topics.Match(pattern)
 	out := make([]*api.TopicMetadata, len(topics))
 	for idx := range out {
 		out[idx] = &api.TopicMetadata{
@@ -370,10 +382,10 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	}
 	return out
 }
-func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
+func (s *messageLog) Consume(f func(r io.ReadSeeker) error) error {
 	r := s.log.Reader()
 	defer r.Close()
-	return consumer.Consume(ctx, r, RecordDecoder(processor))
+	return f(r)
 }
 
 func RecordMatcher(patterns [][]byte, f RecordProcessor) RecordProcessor {
@@ -416,7 +428,7 @@ func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error)
 func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error {
 	s.restorelock.RLock()
 	defer s.restorelock.RUnlock()
-	topics := s.topics.Match(pattern)
+	topics := s.topics.topics.Match(pattern)
 	logReader := s.log.Reader()
 	defer logReader.Close()
 
