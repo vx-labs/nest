@@ -190,10 +190,10 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 
 func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_StreamRecordsServer) error {
 	patterns := in.Patterns
-	return s.state.Consume(stream.Context(), func(ctx context.Context, batch Batch) error {
+	return s.state.Consume(stream.Context(), func(ctx context.Context, _ uint64, batch []*api.Record) error {
 		out := []*api.Record{}
 		if len(patterns) > 0 {
-			for _, record := range batch.Records {
+			for _, record := range batch {
 				for _, pattern := range patterns {
 					if match(pattern, record.Topic) {
 						out = append(out, record)
@@ -202,7 +202,7 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 			}
 			return stream.Send(&api.GetRecordsResponse{Records: out})
 		}
-		return stream.Send(&api.GetRecordsResponse{Records: batch.Records})
+		return stream.Send(&api.GetRecordsResponse{Records: batch})
 	}, ConsumerOptions{
 		FromOffset:   in.FromOffset,
 		MaxBatchSize: 250,
@@ -210,7 +210,7 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, stream api.Messages_St
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, stream api.Messages_GetTopicsServer) error {
-	return s.state.GetTopics(stream.Context(), in.Pattern, func(ctx context.Context, batch Batch) error {
-		return stream.Send(&api.GetTopicsResponse{Records: batch.Records})
+	return s.state.GetTopics(stream.Context(), in.Pattern, func(ctx context.Context, _ uint64, batch []*api.Record) error {
+		return stream.Send(&api.GetTopicsResponse{Records: batch})
 	})
 }
