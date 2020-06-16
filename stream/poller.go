@@ -27,20 +27,20 @@ type Batch struct {
 	FirstOffset uint64
 	Records     [][]byte
 }
-type session struct {
+type poller struct {
 	maxBatchSize int
 	minBatchSize int
 	current      Batch
 	ch           chan Batch
 }
 
-type Session interface {
+type Poller interface {
 	Ready() <-chan Batch
 }
 
-func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Session {
+func newPoller(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Poller {
 	offset, _ := log.Seek(opts.FromOffset, io.SeekStart)
-	s := &session{
+	s := &poller{
 		ch:           make(chan Batch),
 		maxBatchSize: opts.MaxBatchSize,
 		minBatchSize: 10,
@@ -53,10 +53,10 @@ func NewSession(ctx context.Context, log io.ReadSeeker, opts ConsumerOptions) Se
 	return s
 }
 
-func (s *session) Ready() <-chan Batch {
+func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
-func (s *session) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
+func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOptions) {
 	defer close(s.ch)
 	buf := make([]byte, 20*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)
