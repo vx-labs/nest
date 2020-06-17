@@ -200,14 +200,6 @@ func main() {
 				rpcDialer, server, nest.L(ctx))
 			snapshotter := <-clusterNode.Snapshotter()
 
-			snapshot, err := snapshotter.Load()
-			if err == nil {
-				err := messageLog.Restore(ctx, snapshot.Data, clusterNode.Call)
-				if err != nil {
-					nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
-				}
-			}
-
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Debug("cluster node stopped")
 				clusterNode.Run(ctx)

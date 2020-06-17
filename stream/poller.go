@@ -40,10 +40,11 @@ type Poller interface {
 
 func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 	var offset int64
-	if opts.FromOffset > 0 {
-		offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
-	} else if opts.FromOffset < 0 {
+
+	if opts.FromOffset < 0 {
 		offset, _ = r.Seek(opts.FromOffset, io.SeekEnd)
+	} else {
+		offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
 	}
 
 	s := &poller{

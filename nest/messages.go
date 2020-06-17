@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"sync"
@@ -125,6 +124,7 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 		L(ctx).Debug("failed to decode state snapshot", zap.Error(err))
 	} else {
 		if s.id == snapshotDescription.Remote {
+			L(ctx).Info("refusing to load snapshot from ourselves", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.CurrentOffset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
 			return nil
 		}
 		L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.CurrentOffset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
@@ -252,41 +252,40 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	encoder := json.NewEncoder(sink)
-	r := s.log.Reader()
-	defer r.Close()
-	if lastOffset == 0 {
-		lastOffset = s.log.Offset()
-	}
+	return s.Consume(func(r io.ReadSeeker) error {
+		if lastOffset == 0 {
+			lastOffset = s.log.Offset()
+		}
 
-	limit, err := r.Seek(int64(lastOffset), io.SeekStart)
-	if err != nil {
-		return err
-	}
-	consumer := stream.NewConsumer(
-		stream.FromOffset(int64(fromOffset)),
-		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-		stream.WithMaxBatchSize(10),
-	)
-	return consumer.Consume(ctx, r,
-		RecordDecoder(func(ctx context.Context, fromOffset uint64, records []*api.Record) error {
-			for idx, record := range records {
-
-				offset := fromOffset + uint64(idx)
-				if offset >= uint64(limit) {
-					return nil
+		limit, err := r.Seek(int64(lastOffset), io.SeekStart)
+		if err != nil {
+			return err
+		}
+		consumer := stream.NewConsumer(
+			stream.FromOffset(int64(fromOffset)),
+			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+			stream.WithMaxBatchSize(10),
+		)
+		err = consumer.Consume(ctx, r,
+			func(ctx context.Context, batch stream.Batch) error {
+				fromOffset = batch.FirstOffset
+				for idx, payload := range batch.Records {
+					offset := fromOffset + uint64(idx)
+					if offset >= uint64(limit) {
+						return io.EOF
+					}
+					err = encoder.Encode(DumpRecord{Offset: offset, Payload: payload})
+					if err != nil {
+						return err
+					}
 				}
-				payload, err := proto.Marshal(record)
-				if err != nil {
-					log.Print(err)
-					return err
-				}
-				err = encoder.Encode(DumpRecord{Offset: offset, Payload: payload})
-				if err != nil {
-					return err
-				}
-			}
+				return nil
+			})
+		if err == io.EOF {
 			return nil
-		}))
+		}
+		return err
+	})
 }
 
 func (s *messageLog) Load(source io.Reader) error {
