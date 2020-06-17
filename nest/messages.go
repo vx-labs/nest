@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -31,18 +30,18 @@ type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type StateRecorder interface {
+	io.Closer
 	CurrentStateOffset() uint64
 	SetCurrentStateOffset(v uint64)
 	Snapshot() ([]byte, error)
-}
-type MessageLog interface {
-	StateRecorder
-	io.Closer
 	Consume(f func(r io.ReadSeeker) error) error
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Load(w io.Reader) error
 	PutRecords(stateOffset uint64, b []*api.Record) error
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+}
+type MessageLog interface {
+	StateRecorder
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error
 }
@@ -55,7 +54,6 @@ type Snapshot struct {
 
 type messageLog struct {
 	id            uint64
-	indexlock     sync.Mutex
 	datadir       string
 	stateOffset   gommap.MMap
 	stateOffsetFd *os.File
