@@ -108,3 +108,30 @@ func (s *topicAggregate) Processor() RecordProcessor {
 		return nil
 	}
 }
+
+func (s *topicAggregate) List(pattern []byte) []*api.TopicMetadata {
+	if len(pattern) == 0 {
+		pattern = []byte("#")
+	}
+	topics := s.topics.Match(pattern)
+	out := make([]*api.TopicMetadata, len(topics))
+	for idx := range out {
+		out[idx] = &api.TopicMetadata{
+			Name:               topics[idx].Name,
+			MessageCount:       uint64(len(topics[idx].Messages)),
+			LastRecord:         topics[idx].LastRecord,
+			SizeInBytes:        topics[idx].SizeInBytes,
+			GuessedContentType: topics[idx].GuessedContentType,
+		}
+	}
+	return out
+}
+
+func (s *topicAggregate) Get(pattern []byte) []uint64 {
+	topics := s.topics.Match(pattern)
+	offsets := []uint64{}
+	for _, topic := range topics {
+		offsets = append(offsets, topic.Messages...)
+	}
+	return offsets
+}

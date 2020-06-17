@@ -55,7 +55,6 @@ type Snapshot struct {
 
 type messageLog struct {
 	id            uint64
-	restorelock   sync.RWMutex
 	indexlock     sync.Mutex
 	datadir       string
 	stateOffset   gommap.MMap
@@ -114,8 +113,6 @@ func NewMessageLog(ctx context.Context, id uint64, datadir string) (MessageLog, 
 }
 
 func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
-	s.restorelock.Lock()
-	defer s.restorelock.Unlock()
 	L(ctx).Debug("restoring snapshot")
 
 	snapshotDescription := Snapshot{}
@@ -162,7 +159,7 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 			L(ctx).Fatal("failed to receive snapshot", zap.Error(err))
 		}
 		file.Seek(0, io.SeekStart)
-		err = s.load(file)
+		err = s.Load(file)
 		if err != nil {
 			return err
 		}
@@ -173,8 +170,6 @@ func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller Remote
 	return nil
 }
 func (s *messageLog) Snapshot() ([]byte, error) {
-	s.restorelock.Lock()
-	defer s.restorelock.Unlock()
 	return json.Marshal(Snapshot{
 		Remote:         s.id,
 		StateOffset:    s.CurrentStateOffset(),
@@ -198,8 +193,6 @@ func (s *messageLog) CurrentStateOffset() uint64 {
 }
 
 func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
 	payloads := make([][]byte, len(b))
 	var err error
 	for idx, record := range b {
@@ -289,11 +282,6 @@ func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 }
 
 func (s *messageLog) Load(source io.Reader) error {
-	s.restorelock.Lock()
-	defer s.restorelock.Unlock()
-	return s.load(source)
-}
-func (s *messageLog) load(source io.Reader) error {
 	firstOffset := s.log.Offset()
 	dec := json.NewDecoder(source)
 	record := &DumpRecord{}
@@ -311,8 +299,6 @@ func (s *messageLog) load(source io.Reader) error {
 	}
 }
 func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
 	if len(pattern) == 0 {
 		pattern = []byte("#")
 	}
@@ -373,20 +359,9 @@ func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error)
 }
 
 func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error {
-	s.restorelock.RLock()
-	defer s.restorelock.RUnlock()
-	topics := s.topics.topics.Match(pattern)
-	logReader := s.log.Reader()
-	defer logReader.Close()
-
-	consumer := stream.NewConsumer(stream.WithMaxBatchSize(10), stream.WithEOFBehaviour(stream.EOFBehaviourExit))
-
-	for _, topic := range topics {
-		r := commitlog.OffsetReader(topic.Messages, logReader)
-		err := consumer.Consume(ctx, r, RecordDecoder(processor))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.Consume(func(logReader io.ReadSeeker) error {
+		consumer := stream.NewConsumer(stream.WithMaxBatchSize(10), stream.WithEOFBehaviour(stream.EOFBehaviourExit))
+		r := commitlog.OffsetReader(s.topics.Get(pattern), logReader)
+		return consumer.Consume(ctx, r, RecordDecoder(processor))
+	})
 }
