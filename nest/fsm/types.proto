@@ -1,7 +1,7 @@
 syntax = "proto3";
 package fsm;
 
-import "github.com/vx-labs/nest/nest/api/api.proto";
+import "github.com/vx-labs/nest/nest/api/nest.proto";
 
 message PeerLost {
   uint64 Peer = 1;
