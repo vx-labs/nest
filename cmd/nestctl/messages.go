@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -28,13 +27,12 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	put := &cobra.Command{
 		Use: "put",
 		Run: func(cmd *cobra.Command, _ []string) {
-			conn, l := mustDial(ctx, cmd, config)
 			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			payload, err := ioutil.ReadAll(cmd.InOrStdin())
-			if len(payload) == 0 {
-				payload = []byte(config.GetString("payload"))
-			}
-			_, err = api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
+			defer cancel()
+			conn, l := mustDial(ctx, cmd, config)
+			payload := []byte(config.GetString("payload"))
+
+			_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
 				Records: []*api.Record{
 					{
 						Timestamp: time.Now().UnixNano(),
@@ -46,7 +44,6 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			if err != nil {
 				l.Fatal("failed to put record", zap.Error(err))
 			}
-			cancel()
 		},
 	}
 	put.Flags().StringP("topic", "t", "test", "Message's topic")
@@ -55,6 +52,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	get := (&cobra.Command{
 		Use: "get",
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
 			conn, l := mustDial(ctx, cmd, config)
 			patterns := make([][]byte, len(args))
 			for idx := range patterns {
@@ -155,33 +154,33 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	backupCommand.Flags().StringP("destination-url", "t", "", "Backup destination URL (file URLs are resolved server-side.)")
 	backupCommand.MarkFlagRequired("destination-url")
 	cmd.AddCommand(backupCommand)
-	restoreCommand := &cobra.Command{
-		Use:  "restore",
-		Args: cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
-			conn, l := mustDial(ctx, cmd, config)
-			stream, err := api.NewMessagesClient(conn).Load(ctx, &api.LoadRequest{
-				SourceURL: config.GetString("source-url"),
-			})
-			if err != nil {
-				l.Fatal("failed to start restore", zap.Error(err))
-			}
-			for {
-				msg, err := stream.Recv()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					l.Fatal("failed to run restore", zap.Error(err))
-				}
-				log.Printf("Restore in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
-			}
-			log.Printf("Restore done")
-		},
-	}
-	restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
-	restoreCommand.MarkFlagRequired("source-url")
-	cmd.AddCommand(restoreCommand)
+	// restoreCommand := &cobra.Command{
+	// 	Use:  "restore",
+	// 	Args: cobra.ExactArgs(0),
+	// 	Run: func(cmd *cobra.Command, args []string) {
+	// 		conn, l := mustDial(ctx, cmd, config)
+	// 		stream, err := api.NewMessagesClient(conn).Load(ctx, &api.LoadRequest{
+	// 			SourceURL: config.GetString("source-url"),
+	// 		})
+	// 		if err != nil {
+	// 			l.Fatal("failed to start restore", zap.Error(err))
+	// 		}
+	// 		for {
+	// 			msg, err := stream.Recv()
+	// 			if err == io.EOF {
+	// 				break
+	// 			}
+	// 			if err != nil {
+	// 				l.Fatal("failed to run restore", zap.Error(err))
+	// 			}
+	// 			log.Printf("Restore in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
+	// 		}
+	// 		log.Printf("Restore done")
+	// 	},
+	// }
+	// restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
+	// restoreCommand.MarkFlagRequired("source-url")
+	// cmd.AddCommand(restoreCommand)
 	cmd.AddCommand(&cobra.Command{
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {

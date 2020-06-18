@@ -50,7 +50,7 @@ message GetTopicsResponse { repeated Record Records = 1; }
 service Messages {
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
-  rpc Load(LoadRequest) returns (stream LoadResponse) {}
+  //rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}

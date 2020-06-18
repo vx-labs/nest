@@ -140,29 +140,29 @@ func (s *server) SST(in *api.SSTRequest, stream api.Messages_SSTServer) error {
 	}
 }
 
-func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error {
-	ctx := stream.Context()
-	source, err := url.Parse(in.SourceURL)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to parse SourceURL: %v", err)
-	}
-	var urlReader URLReader
-	switch source.Scheme {
-	case "http":
-		urlReader = HTTPURLReader()
-	case "https":
-		urlReader = HTTPURLReader()
-	case "file":
-		urlReader = FileURLReader()
-	default:
-		return status.Errorf(codes.InvalidArgument, "unknown SourceURL scheme: %s", source.Scheme)
-	}
-	r, err := urlReader(ctx, source)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to open SourceURL: %v", err)
-	}
-	return s.state.Load(r)
-}
+// func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error {
+// 	ctx := stream.Context()
+// 	source, err := url.Parse(in.SourceURL)
+// 	if err != nil {
+// 		return status.Errorf(codes.InvalidArgument, "unable to parse SourceURL: %v", err)
+// 	}
+// 	var urlReader URLReader
+// 	switch source.Scheme {
+// 	case "http":
+// 		urlReader = HTTPURLReader()
+// 	case "https":
+// 		urlReader = HTTPURLReader()
+// 	case "file":
+// 		urlReader = FileURLReader()
+// 	default:
+// 		return status.Errorf(codes.InvalidArgument, "unknown SourceURL scheme: %s", source.Scheme)
+// 	}
+// 	r, err := urlReader(ctx, source)
+// 	if err != nil {
+// 		return status.Errorf(codes.InvalidArgument, "failed to open SourceURL: %v", err)
+// 	}
+// 	return s.state.Load(r)
+// }
 func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*api.PutRecordsResponse, error) {
 	return &api.PutRecordsResponse{}, s.fsm.PutRecords(ctx, in.Records)
 }
@@ -172,13 +172,13 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
 		stream.WithMaxBatchSize(250),
 	)
-	return s.state.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(client.Context(), r,
-			RecordDecoder(
-				RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
-					return client.Send(&api.GetRecordsResponse{Records: batch})
-				})))
-	})
+	return s.state.Consume(client.Context(), consumer,
+		RecordMatcher(in.Patterns,
+			func(_ context.Context, _ uint64, batch []*api.Record) error {
+				return client.Send(&api.GetRecordsResponse{Records: batch})
+			},
+		),
+	)
 }
 
 func (s *server) Serve(grpcServer *grpc.Server) {
@@ -195,13 +195,13 @@ func (s *server) StreamRecords(in *api.GetRecordsRequest, client api.Messages_St
 		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 		stream.WithMaxBatchSize(250),
 	)
-	return s.state.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(client.Context(), r,
-			RecordDecoder(
-				RecordMatcher(in.Patterns, func(_ context.Context, _ uint64, batch []*api.Record) error {
-					return client.Send(&api.GetRecordsResponse{Records: batch})
-				})))
-	})
+	return s.state.Consume(client.Context(), consumer,
+		RecordMatcher(in.Patterns,
+			func(_ context.Context, _ uint64, batch []*api.Record) error {
+				return client.Send(&api.GetRecordsResponse{Records: batch})
+			},
+		),
+	)
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {

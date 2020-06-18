@@ -165,7 +165,11 @@ func main() {
 					zap.Duration("consul_discovery_duration", time.Since(discoveryStarted)), zap.Int("node_count", len(consulJoinList)))
 				joinList = append(joinList, consulJoinList...)
 			}
-			messageLog, err := nest.NewMessageLog(ctx, id, config.GetString("data-dir"))
+			messageRecorder, err := nest.NewRecorder(id, "messages", config.GetString("data-dir"), nest.L(ctx))
+			if err != nil {
+				nest.L(ctx).Fatal("failed to load message recorder", zap.Error(err))
+			}
+			messageLog, err := nest.NewMessageLog(ctx, messageRecorder)
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
@@ -190,11 +194,11 @@ func main() {
 						AdvertizedPort: config.GetInt("raft-advertized-port"),
 						ListeningPort:  config.GetInt("raft-port"),
 					},
-					AppliedIndex: messageLog.CurrentStateOffset(),
+					AppliedIndex: messageRecorder.CurrentStateOffset(),
 				},
 				GetStateSnapshot: func() ([]byte, error) {
 					nest.L(ctx).Debug("snapshoting message log")
-					return messageLog.Snapshot()
+					return messageRecorder.Snapshot()
 				},
 			},
 				rpcDialer, server, nest.L(ctx))
@@ -292,6 +296,8 @@ func main() {
 			healthServer.SetServingStatus("mqtt", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
+			nest.L(ctx).Info("nest ready")
+
 			sigc := make(chan os.Signal, 1)
 			signal.Notify(sigc,
 				syscall.SIGINT,
