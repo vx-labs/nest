@@ -20,9 +20,7 @@ import (
 	"github.com/vx-labs/nest/nest"
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/nest/async"
-	"github.com/vx-labs/nest/nest/fsm"
 	"github.com/vx-labs/wasp/cluster"
-	"github.com/vx-labs/wasp/cluster/raft"
 	"github.com/vx-labs/wasp/rpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/health"
@@ -129,8 +127,6 @@ func main() {
 			healthServer.Resume()
 			wg := sync.WaitGroup{}
 			cancelCh := make(chan struct{})
-			commandsCh := make(chan raft.Command)
-			recordsCh := make(chan *api.Record, 20)
 			if config.GetString("rpc-tls-certificate-file") == "" || config.GetString("rpc-tls-private-key-file") == "" {
 				nest.L(ctx).Warn("TLS certificate or private key not provided. GRPC transport security will use a self-signed generated certificate.")
 			}
@@ -165,19 +161,20 @@ func main() {
 					zap.Duration("consul_discovery_duration", time.Since(discoveryStarted)), zap.Int("node_count", len(consulJoinList)))
 				joinList = append(joinList, consulJoinList...)
 			}
-			messageRecorder, err := nest.NewRecorder(id, "messages", config.GetString("data-dir"), nest.L(ctx))
-			if err != nil {
-				nest.L(ctx).Fatal("failed to load message recorder", zap.Error(err))
-			}
-			messageLog, err := nest.NewMessageLog(ctx, messageRecorder)
-			if err != nil {
-				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
-			}
 
-			stateMachine := fsm.NewFSM(id, messageLog, commandsCh)
-			clusterNode := cluster.NewNode(cluster.NodeConfig{
+			streamsServer := nest.NewStreamsServer()
+			api.RegisterStreamsServer(server, streamsServer)
+			raftConfig := cluster.RaftConfig{
+				ExpectedNodeCount: config.GetInt("raft-bootstrap-expect"),
+				Network: cluster.NetworkConfig{
+					AdvertizedHost: config.GetString("raft-advertized-address"),
+					AdvertizedPort: config.GetInt("raft-advertized-port"),
+					ListeningPort:  config.GetInt("raft-port"),
+				},
+			}
+			clusterMultiNode := cluster.NewMultiNode(cluster.NodeConfig{
 				ID:            id,
-				ServiceName:   "wasp",
+				ServiceName:   "nest",
 				DataDirectory: config.GetString("data-dir"),
 				GossipConfig: cluster.GossipConfig{
 					JoinList: joinList,
@@ -187,29 +184,24 @@ func main() {
 						ListeningPort:  config.GetInt("serf-port"),
 					},
 				},
-				RaftConfig: cluster.RaftConfig{
-					ExpectedNodeCount: config.GetInt("raft-bootstrap-expect"),
-					Network: cluster.NetworkConfig{
-						AdvertizedHost: config.GetString("raft-advertized-address"),
-						AdvertizedPort: config.GetInt("raft-advertized-port"),
-						ListeningPort:  config.GetInt("raft-port"),
-					},
-					AppliedIndex: messageRecorder.CurrentStateOffset(),
-				},
-				GetStateSnapshot: func() ([]byte, error) {
-					nest.L(ctx).Debug("snapshoting message log")
-					return messageRecorder.Snapshot()
-				},
+				RaftConfig: raftConfig,
 			},
 				rpcDialer, server, nest.L(ctx))
-			snapshotter := <-clusterNode.Snapshotter()
+			messageController, err := newStream(ctx, id, "messages", 1, config.GetString("data-dir"), clusterMultiNode, streamsServer, raftConfig, nest.L(ctx))
+			if err != nil {
+				nest.L(ctx).Fatal("failed to create messages stream", zap.Error(err))
+			}
+			eventsController, err := newStream(ctx, id, "events", 1, config.GetString("data-dir"), clusterMultiNode, streamsServer, raftConfig, nest.L(ctx))
+			if err != nil {
+				nest.L(ctx).Fatal("failed to create events stream", zap.Error(err))
+			}
+			messageLog, err := nest.NewMessageLog(ctx, messageController.Shards()[0])
+			if err != nil {
+				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
+			}
 
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Debug("cluster node stopped")
-				clusterNode.Run(ctx)
-			})
-			waspReceiver := nest.NewWaspReceiver(stateMachine)
-			messagesServer := nest.NewServer(stateMachine, messageLog)
+			waspReceiver := nest.NewWaspReceiver(messageLog)
+			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)
 			waspReceiver.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
@@ -220,82 +212,11 @@ func main() {
 					nest.L(ctx).Fatal("cluster listener crashed", zap.Error(err))
 				}
 			})
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Info("records publisher stopped")
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case event := <-recordsCh:
-						err := stateMachine.PutRecords(ctx, []*api.Record{event})
-						if err != nil {
-							nest.L(ctx).Warn("record put failed", zap.Error(err))
-						}
-					}
-				}
-			})
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Info("command publisher stopped")
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case event := <-commandsCh:
-						err := clusterNode.Apply(event.Ctx, event.Payload)
-						select {
-						case <-ctx.Done():
-						case <-event.Ctx.Done():
-						case event.ErrCh <- err:
-						}
-						close(event.ErrCh)
-					}
-				}
-			})
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Info("command processor stopped")
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case event := <-clusterNode.Commits():
-						if event.Payload == nil {
-							snapshot, err := snapshotter.Load()
-							if err != nil {
-								nest.L(ctx).Error("failed to load", zap.Error(err))
-							}
-							err = messageLog.Restore(ctx, snapshot.Data, clusterNode.Call)
-							if err != nil {
-								nest.L(ctx).Debug("failed to load state snapshot", zap.Error(err))
-							}
-						} else {
-							stateMachine.Apply(event.Index, event.Payload)
-						}
-					}
-				}
-			})
-			<-clusterNode.Ready()
-			if brokerURL := config.GetString("mqtt-collector-broker-url"); brokerURL != "" {
-				mqttCollector, err := nest.MQTTCollector(brokerURL,
-					config.GetString("mqtt-collector-broker-username"),
-					config.GetString("mqtt-collector-broker-password"))
-				if err != nil {
-					nest.L(ctx).Error("failed to start mqtt collector", zap.Error(err))
-					close(cancelCh)
-				} else {
-					async.Run(ctx, &wg, func(ctx context.Context) {
-						defer nest.L(ctx).Info("mqtt collector stopped")
-						err := mqttCollector.Run(ctx, recordsCh)
-						if err != nil {
-							nest.L(ctx).Error("mqtt collector crashed", zap.Error(err))
-						}
-					})
-				}
-			}
-			//go stats.ListenAndServe(config.GetInt("metrics-port"))
 
-			healthServer.SetServingStatus("mqtt", healthpb.HealthCheckResponse_SERVING)
+			//go stats.ListenAndServe(config.GetInt("metrics-port"))
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
+			messageController.WaitReady(ctx)
 			nest.L(ctx).Info("nest ready")
 
 			sigc := make(chan os.Signal, 1)
@@ -308,20 +229,20 @@ func main() {
 			case <-cancelCh:
 			}
 			nest.L(ctx).Info("nest shutdown initiated")
-			err = stateMachine.Shutdown(ctx)
+			err = messageController.Shutdown(ctx)
 			if err != nil {
-				nest.L(ctx).Error("failed to stop state machine", zap.Error(err))
+				nest.L(ctx).Error("failed to leave messages stream", zap.Error(err))
 			} else {
-				nest.L(ctx).Debug("state machine stopped")
+				nest.L(ctx).Debug("messages stream left")
 			}
-			err = clusterNode.Shutdown()
+			err = eventsController.Shutdown(ctx)
 			if err != nil {
-				nest.L(ctx).Error("failed to leave cluster", zap.Error(err))
+				nest.L(ctx).Error("failed to leave events stream", zap.Error(err))
 			} else {
-				nest.L(ctx).Debug("cluster left")
+				nest.L(ctx).Debug("events stream left")
 			}
 			healthServer.Shutdown()
-			nest.L(ctx).Debug("health server stopped")
+			nest.L(ctx).Debug("health server left")
 			go func() {
 				<-time.After(1 * time.Second)
 				server.Stop()
@@ -330,11 +251,10 @@ func main() {
 			nest.L(ctx).Debug("rpc server stopped")
 			clusterListener.Close()
 			nest.L(ctx).Debug("rpc listener stopped")
+			clusterMultiNode.Shutdown()
 			cancel()
 			wg.Wait()
 			nest.L(ctx).Debug("asynchronous operations stopped")
-			messageLog.Close()
-			nest.L(ctx).Debug("message log closed")
 			nest.L(ctx).Info("nest successfully stopped")
 		},
 	}
@@ -364,10 +284,6 @@ func main() {
 	cmd.Flags().String("rpc-tls-certificate-authority-file", "", "x509 certificate authority used by RPC Server.")
 	cmd.Flags().String("rpc-tls-certificate-file", "", "x509 certificate used by RPC Server.")
 	cmd.Flags().String("rpc-tls-private-key-file", "", "Private key used by RPC Server.")
-
-	cmd.Flags().String("mqtt-collector-broker-url", "", "Collect messages from this MQTT Broker.")
-	cmd.Flags().String("mqtt-collector-broker-username", "vx:psk", "Username to authenticate against MQTT Broker.")
-	cmd.Flags().String("mqtt-collector-broker-password", "", "Password to authenticate against MQTT Broker.")
 
 	cmd.AddCommand(TLSHelper(config))
 	cmd.Execute()

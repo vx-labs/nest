@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"sync"
@@ -12,8 +14,10 @@ import (
 
 	"github.com/tysontate/gommap"
 	"github.com/vx-labs/nest/commitlog"
+	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 type Recorder interface {
@@ -25,29 +29,36 @@ type Recorder interface {
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
 	Append(stateOffset uint64, payloads [][]byte) error
 	Offset() uint64
-	Restore(ctx context.Context, snapshotDescription Snapshot, file io.ReadSeeker) error
+	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+}
+
+type DumpRecord struct {
+	Offset  uint64 `json:"offset"`
+	Payload []byte `json:"payload"`
 }
 
 // recorder integrates a commitlog with raft state
 type recorder struct {
 	mtx           sync.RWMutex
 	id            uint64
+	stream        string
+	shard         uint64
 	datadir       string
 	stateOffset   gommap.MMap
 	stateOffsetFd *os.File
 	log           commitlog.CommitLog
 }
 
-func NewRecorder(id uint64, name, datadir string, logger *zap.Logger) (Recorder, error) {
-	logger = logger.With(zap.String("recorder_name", name))
+func NewRecorder(id uint64, stream string, shard uint64, datadir string, logger *zap.Logger) (Recorder, error) {
+	logger = logger.With(zap.String("recorder_stream", stream), zap.Uint64("recorder_shard", shard))
 	logger.Debug("opening commit log")
 	start := time.Now()
-	log, err := commitlog.Open(path.Join(datadir, name), 250)
+	log, err := commitlog.Open(path.Join(datadir, stream, fmt.Sprintf("%d", shard)), 250)
 	if err != nil {
 		return nil, err
 	}
 	logger.Debug("commit log opened", zap.Duration("elapsed_time", time.Since(start)))
-	statePath := path.Join(datadir, "messages.state")
+	statePath := path.Join(datadir, fmt.Sprintf("%s-%d.state", stream, shard))
 	var fd *os.File
 
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
@@ -74,12 +85,14 @@ func NewRecorder(id uint64, name, datadir string, logger *zap.Logger) (Recorder,
 
 	s := &recorder{
 		id:            id,
+		stream:        stream,
+		shard:         shard,
 		datadir:       datadir,
 		log:           log,
 		stateOffset:   mmapedData,
 		stateOffsetFd: fd,
 	}
-	logger.Info("loaded message log", zap.Uint64("current_log_offset", s.log.Offset()))
+	logger.Info("loaded log", zap.Uint64("current_log_offset", s.log.Offset()))
 	return s, nil
 }
 
@@ -159,10 +172,7 @@ func (s *recorder) load(source io.Reader) error {
 func (s *recorder) Offset() uint64 {
 	return s.log.Offset()
 }
-func (s *recorder) Restore(ctx context.Context, snapshotDescription Snapshot, file io.ReadSeeker) error {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
-
+func (s *recorder) restoreFromFile(ctx context.Context, snapshotDescription Snapshot, file io.ReadSeeker) error {
 	L(ctx).Debug("restoring snapshot")
 
 	if s.id == snapshotDescription.Remote {
@@ -220,4 +230,55 @@ func (s *recorder) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 		}
 		return err
 	})
+}
+
+func (s *recorder) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	L(ctx).Debug("restoring snapshot")
+
+	snapshotDescription := Snapshot{}
+	err := json.Unmarshal(snapshot, &snapshotDescription)
+	if err != nil {
+		L(ctx).Debug("failed to decode state snapshot", zap.Error(err))
+	} else {
+		file, err := ioutil.TempFile("", "sst-incoming.*.nest")
+		if err != nil {
+			L(ctx).Fatal("failed to create tmp file to receive snapshot", zap.Error(err))
+		}
+		defer os.Remove(file.Name())
+		defer file.Close()
+		err = caller(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
+			stream, err := api.NewStreamsClient(c).SST(ctx, &api.SSTRequest{
+				Stream:     s.stream,
+				Shard:      s.shard,
+				ToOffset:   snapshotDescription.MessagesOffset,
+				FromOffset: s.log.Offset(),
+			})
+			if err != nil {
+				return err
+			}
+
+			for {
+				chunk, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return err
+				}
+				_, err = file.Write(chunk.Chunk)
+				if err != nil {
+					return err
+				}
+			}
+			return file.Sync()
+		})
+		if err != nil {
+			L(ctx).Fatal("failed to receive snapshot", zap.Error(err))
+		}
+		return s.restoreFromFile(ctx, snapshotDescription, file)
+	}
+	return nil
 }

@@ -9,11 +9,11 @@ import (
 )
 
 type WaspReceiver struct {
-	fsm FSM
+	messages MessageLog
 }
 
-func NewWaspReceiver(fsm FSM) *WaspReceiver {
-	return &WaspReceiver{fsm: fsm}
+func NewWaspReceiver(messages MessageLog) *WaspReceiver {
+	return &WaspReceiver{messages: messages}
 }
 
 func (w *WaspReceiver) Serve(server *grpc.Server) {
@@ -29,5 +29,5 @@ func (w *WaspReceiver) PutWaspRecords(ctx context.Context, in *taps.PutWaspRecor
 			Topic:     in.WaspRecords[idx].Topic,
 		}
 	}
-	return &taps.PutWaspRecordsResponse{}, w.fsm.PutRecords(ctx, records)
+	return &taps.PutWaspRecordsResponse{}, w.messages.PutRecords(ctx, records)
 }

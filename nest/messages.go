@@ -4,16 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"io"
-	"io/ioutil"
-	"os"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -27,12 +23,7 @@ type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type MessageLog interface {
-	io.Closer
-	SetCurrentStateOffset(v uint64)
-	CurrentStateOffset() uint64
-	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
-	Dump(sink io.Writer, fromOffset, lastOffset uint64) error
-	PutRecords(stateOffset uint64, b []*api.Record) error
+	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error
 	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
@@ -45,36 +36,26 @@ type Snapshot struct {
 }
 
 type messageLog struct {
-	recorder Recorder
-	topics   *topicAggregate
+	shard  Shard
+	topics *topicAggregate
 }
 
-func NewMessageLog(ctx context.Context, recoder Recorder) (MessageLog, error) {
+func NewMessageLog(ctx context.Context, shard Shard) (MessageLog, error) {
 	s := &messageLog{
-		recorder: recoder,
-		topics:   &topicAggregate{topics: NewTopicState()},
+		shard:  shard,
+		topics: &topicAggregate{topics: NewTopicState()},
 	}
-	go s.recorder.Consume(func(r io.ReadSeeker) error {
+	go s.shard.Consume(func(r io.ReadSeeker) error {
 		consumer := stream.NewConsumer()
 		return consumer.Consume(ctx, r, RecordDecoder(s.topics.Processor()))
 	})
 	return s, nil
 }
 
-func (s *messageLog) CurrentStateOffset() uint64 {
-	return s.recorder.CurrentStateOffset()
-}
-func (s *messageLog) SetCurrentStateOffset(v uint64) {
-	s.recorder.SetCurrentStateOffset(v)
-}
-func (s *messageLog) Close() error {
-	return s.recorder.Close()
-}
-
 func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
-	return s.recorder.Dump(sink, fromOffset, lastOffset)
+	return s.shard.Dump(sink, fromOffset, lastOffset)
 }
-func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
+func (s *messageLog) PutRecords(ctx context.Context, b []*api.Record) error {
 	payloads := make([][]byte, len(b))
 	var err error
 	for idx, record := range b {
@@ -83,7 +64,7 @@ func (s *messageLog) PutRecords(stateOffset uint64, b []*api.Record) error {
 			return err
 		}
 	}
-	return s.recorder.Append(stateOffset, payloads)
+	return s.shard.PutRecords(ctx, payloads)
 }
 
 func cut(t []byte) ([]byte, string) {
@@ -111,11 +92,6 @@ func match(pattern []byte, topic []byte) bool {
 	return false
 }
 
-type DumpRecord struct {
-	Offset  uint64 `json:"offset"`
-	Payload []byte `json:"payload"`
-}
-
 func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	if len(pattern) == 0 {
 		pattern = []byte("#")
@@ -135,7 +111,7 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 }
 
 func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
-	return s.recorder.Consume(func(r io.ReadSeeker) error {
+	return s.shard.Consume(func(r io.ReadSeeker) error {
 		return consumer.Consume(ctx, r, RecordDecoder(processor))
 	})
 }
@@ -178,55 +154,9 @@ func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error)
 }
 
 func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error {
-	return s.recorder.Consume(func(logReader io.ReadSeeker) error {
+	return s.shard.Consume(func(logReader io.ReadSeeker) error {
 		consumer := stream.NewConsumer(stream.WithMaxBatchSize(10), stream.WithEOFBehaviour(stream.EOFBehaviourExit))
 		r := commitlog.OffsetReader(s.topics.Get(pattern), logReader)
 		return consumer.Consume(ctx, r, RecordDecoder(processor))
 	})
-}
-
-func (s *messageLog) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
-	L(ctx).Debug("restoring snapshot")
-
-	snapshotDescription := Snapshot{}
-	err := json.Unmarshal(snapshot, &snapshotDescription)
-	if err != nil {
-		L(ctx).Debug("failed to decode state snapshot", zap.Error(err))
-	} else {
-		file, err := ioutil.TempFile("", "sst-incoming.*.nest")
-		if err != nil {
-			L(ctx).Fatal("failed to create tmp file to receive snapshot", zap.Error(err))
-		}
-		defer os.Remove(file.Name())
-		defer file.Close()
-		err = caller(snapshotDescription.Remote, func(c *grpc.ClientConn) error {
-			stream, err := api.NewMessagesClient(c).SST(ctx, &api.SSTRequest{
-				ToOffset:   snapshotDescription.MessagesOffset,
-				FromOffset: s.recorder.Offset(),
-			})
-			if err != nil {
-				return err
-			}
-
-			for {
-				chunk, err := stream.Recv()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return err
-				}
-				_, err = file.Write(chunk.Chunk)
-				if err != nil {
-					return err
-				}
-			}
-			return file.Sync()
-		})
-		if err != nil {
-			L(ctx).Fatal("failed to receive snapshot", zap.Error(err))
-		}
-		return s.recorder.Restore(ctx, snapshotDescription, file)
-	}
-	return nil
 }

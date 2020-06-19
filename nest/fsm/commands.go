@@ -7,12 +7,11 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	api "github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/wasp/cluster/raft"
 )
 
 type State interface {
-	PutRecords(uint64, []*api.Record) error
+	Append(uint64, [][]byte) error
 	SetCurrentStateOffset(v uint64)
 }
 
@@ -68,10 +67,10 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 	}
 	return f.commit(ctx, payload)
 }
-func (f *FSM) PutRecords(ctx context.Context, records []*api.Record) error {
+func (f *FSM) PutRecords(ctx context.Context, records [][]byte) error {
 	for _, record := range records {
-		if len(record.Payload) > 15*1000*1000 || len(record.Topic) > 5*1000*5000 {
-			return errors.New("payload or topic size exceeded")
+		if len(record) > 20*1000*1000 {
+			return errors.New("payload size exceeded")
 		}
 	}
 	payload, err := encode(&StateTransition{Event: &StateTransition_RecordsPut{
@@ -93,7 +92,7 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
 		case *StateTransition_RecordsPut:
-			err = f.state.PutRecords(index, event.RecordsPut.Records)
+			err = f.state.Append(index, event.RecordsPut.Records)
 		default:
 			f.state.SetCurrentStateOffset(index)
 		}

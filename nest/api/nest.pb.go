@@ -235,225 +235,6 @@ func (m *GetRecordsResponse) GetRecords() []*Record {
 	return nil
 }
 
-type DumpRequest struct {
-	DestinationURL       string   `protobuf:"bytes,1,opt,name=DestinationURL,proto3" json:"DestinationURL,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *DumpRequest) Reset()         { *m = DumpRequest{} }
-func (m *DumpRequest) String() string { return proto.CompactTextString(m) }
-func (*DumpRequest) ProtoMessage()    {}
-func (*DumpRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{5}
-}
-
-func (m *DumpRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DumpRequest.Unmarshal(m, b)
-}
-func (m *DumpRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DumpRequest.Marshal(b, m, deterministic)
-}
-func (m *DumpRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DumpRequest.Merge(m, src)
-}
-func (m *DumpRequest) XXX_Size() int {
-	return xxx_messageInfo_DumpRequest.Size(m)
-}
-func (m *DumpRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DumpRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DumpRequest proto.InternalMessageInfo
-
-func (m *DumpRequest) GetDestinationURL() string {
-	if m != nil {
-		return m.DestinationURL
-	}
-	return ""
-}
-
-type DumpResponse struct {
-	StartedAt            int64    `protobuf:"varint,1,opt,name=StartedAt,proto3" json:"StartedAt,omitempty"`
-	ProgressBytes        int64    `protobuf:"varint,2,opt,name=ProgressBytes,proto3" json:"ProgressBytes,omitempty"`
-	TotalBytes           int64    `protobuf:"varint,3,opt,name=TotalBytes,proto3" json:"TotalBytes,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *DumpResponse) Reset()         { *m = DumpResponse{} }
-func (m *DumpResponse) String() string { return proto.CompactTextString(m) }
-func (*DumpResponse) ProtoMessage()    {}
-func (*DumpResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{6}
-}
-
-func (m *DumpResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DumpResponse.Unmarshal(m, b)
-}
-func (m *DumpResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DumpResponse.Marshal(b, m, deterministic)
-}
-func (m *DumpResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DumpResponse.Merge(m, src)
-}
-func (m *DumpResponse) XXX_Size() int {
-	return xxx_messageInfo_DumpResponse.Size(m)
-}
-func (m *DumpResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_DumpResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DumpResponse proto.InternalMessageInfo
-
-func (m *DumpResponse) GetStartedAt() int64 {
-	if m != nil {
-		return m.StartedAt
-	}
-	return 0
-}
-
-func (m *DumpResponse) GetProgressBytes() int64 {
-	if m != nil {
-		return m.ProgressBytes
-	}
-	return 0
-}
-
-func (m *DumpResponse) GetTotalBytes() int64 {
-	if m != nil {
-		return m.TotalBytes
-	}
-	return 0
-}
-
-type SSTRequest struct {
-	ToOffset             uint64   `protobuf:"varint,1,opt,name=ToOffset,proto3" json:"ToOffset,omitempty"`
-	FromOffset           uint64   `protobuf:"varint,2,opt,name=FromOffset,proto3" json:"FromOffset,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *SSTRequest) Reset()         { *m = SSTRequest{} }
-func (m *SSTRequest) String() string { return proto.CompactTextString(m) }
-func (*SSTRequest) ProtoMessage()    {}
-func (*SSTRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{7}
-}
-
-func (m *SSTRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SSTRequest.Unmarshal(m, b)
-}
-func (m *SSTRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SSTRequest.Marshal(b, m, deterministic)
-}
-func (m *SSTRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SSTRequest.Merge(m, src)
-}
-func (m *SSTRequest) XXX_Size() int {
-	return xxx_messageInfo_SSTRequest.Size(m)
-}
-func (m *SSTRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_SSTRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_SSTRequest proto.InternalMessageInfo
-
-func (m *SSTRequest) GetToOffset() uint64 {
-	if m != nil {
-		return m.ToOffset
-	}
-	return 0
-}
-
-func (m *SSTRequest) GetFromOffset() uint64 {
-	if m != nil {
-		return m.FromOffset
-	}
-	return 0
-}
-
-type SSTResponseChunk struct {
-	Chunk                []byte   `protobuf:"bytes,1,opt,name=Chunk,proto3" json:"Chunk,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *SSTResponseChunk) Reset()         { *m = SSTResponseChunk{} }
-func (m *SSTResponseChunk) String() string { return proto.CompactTextString(m) }
-func (*SSTResponseChunk) ProtoMessage()    {}
-func (*SSTResponseChunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{8}
-}
-
-func (m *SSTResponseChunk) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_SSTResponseChunk.Unmarshal(m, b)
-}
-func (m *SSTResponseChunk) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_SSTResponseChunk.Marshal(b, m, deterministic)
-}
-func (m *SSTResponseChunk) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SSTResponseChunk.Merge(m, src)
-}
-func (m *SSTResponseChunk) XXX_Size() int {
-	return xxx_messageInfo_SSTResponseChunk.Size(m)
-}
-func (m *SSTResponseChunk) XXX_DiscardUnknown() {
-	xxx_messageInfo_SSTResponseChunk.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_SSTResponseChunk proto.InternalMessageInfo
-
-func (m *SSTResponseChunk) GetChunk() []byte {
-	if m != nil {
-		return m.Chunk
-	}
-	return nil
-}
-
-type LoadRequest struct {
-	SourceURL            string   `protobuf:"bytes,1,opt,name=SourceURL,proto3" json:"SourceURL,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *LoadRequest) Reset()         { *m = LoadRequest{} }
-func (m *LoadRequest) String() string { return proto.CompactTextString(m) }
-func (*LoadRequest) ProtoMessage()    {}
-func (*LoadRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{9}
-}
-
-func (m *LoadRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LoadRequest.Unmarshal(m, b)
-}
-func (m *LoadRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LoadRequest.Marshal(b, m, deterministic)
-}
-func (m *LoadRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LoadRequest.Merge(m, src)
-}
-func (m *LoadRequest) XXX_Size() int {
-	return xxx_messageInfo_LoadRequest.Size(m)
-}
-func (m *LoadRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_LoadRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LoadRequest proto.InternalMessageInfo
-
-func (m *LoadRequest) GetSourceURL() string {
-	if m != nil {
-		return m.SourceURL
-	}
-	return ""
-}
-
 type LoadResponse struct {
 	StartedAt            int64    `protobuf:"varint,1,opt,name=StartedAt,proto3" json:"StartedAt,omitempty"`
 	ProgressBytes        int64    `protobuf:"varint,2,opt,name=ProgressBytes,proto3" json:"ProgressBytes,omitempty"`
@@ -467,7 +248,7 @@ func (m *LoadResponse) Reset()         { *m = LoadResponse{} }
 func (m *LoadResponse) String() string { return proto.CompactTextString(m) }
 func (*LoadResponse) ProtoMessage()    {}
 func (*LoadResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{10}
+	return fileDescriptor_90c05566c01c366f, []int{5}
 }
 
 func (m *LoadResponse) XXX_Unmarshal(b []byte) error {
@@ -524,7 +305,7 @@ func (m *TopicMetadata) Reset()         { *m = TopicMetadata{} }
 func (m *TopicMetadata) String() string { return proto.CompactTextString(m) }
 func (*TopicMetadata) ProtoMessage()    {}
 func (*TopicMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{11}
+	return fileDescriptor_90c05566c01c366f, []int{6}
 }
 
 func (m *TopicMetadata) XXX_Unmarshal(b []byte) error {
@@ -591,7 +372,7 @@ func (m *ListTopicsRequest) Reset()         { *m = ListTopicsRequest{} }
 func (m *ListTopicsRequest) String() string { return proto.CompactTextString(m) }
 func (*ListTopicsRequest) ProtoMessage()    {}
 func (*ListTopicsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{12}
+	return fileDescriptor_90c05566c01c366f, []int{7}
 }
 
 func (m *ListTopicsRequest) XXX_Unmarshal(b []byte) error {
@@ -630,7 +411,7 @@ func (m *ListTopicsResponse) Reset()         { *m = ListTopicsResponse{} }
 func (m *ListTopicsResponse) String() string { return proto.CompactTextString(m) }
 func (*ListTopicsResponse) ProtoMessage()    {}
 func (*ListTopicsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{13}
+	return fileDescriptor_90c05566c01c366f, []int{8}
 }
 
 func (m *ListTopicsResponse) XXX_Unmarshal(b []byte) error {
@@ -669,7 +450,7 @@ func (m *GetTopicsRequest) Reset()         { *m = GetTopicsRequest{} }
 func (m *GetTopicsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTopicsRequest) ProtoMessage()    {}
 func (*GetTopicsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{14}
+	return fileDescriptor_90c05566c01c366f, []int{9}
 }
 
 func (m *GetTopicsRequest) XXX_Unmarshal(b []byte) error {
@@ -708,7 +489,7 @@ func (m *GetTopicsResponse) Reset()         { *m = GetTopicsResponse{} }
 func (m *GetTopicsResponse) String() string { return proto.CompactTextString(m) }
 func (*GetTopicsResponse) ProtoMessage()    {}
 func (*GetTopicsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_90c05566c01c366f, []int{15}
+	return fileDescriptor_90c05566c01c366f, []int{10}
 }
 
 func (m *GetTopicsResponse) XXX_Unmarshal(b []byte) error {
@@ -736,69 +517,338 @@ func (m *GetTopicsResponse) GetRecords() []*Record {
 	return nil
 }
 
+type SSTRequest struct {
+	Stream               string   `protobuf:"bytes,1,opt,name=Stream,proto3" json:"Stream,omitempty"`
+	Shard                uint64   `protobuf:"varint,2,opt,name=Shard,proto3" json:"Shard,omitempty"`
+	ToOffset             uint64   `protobuf:"varint,3,opt,name=ToOffset,proto3" json:"ToOffset,omitempty"`
+	FromOffset           uint64   `protobuf:"varint,4,opt,name=FromOffset,proto3" json:"FromOffset,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SSTRequest) Reset()         { *m = SSTRequest{} }
+func (m *SSTRequest) String() string { return proto.CompactTextString(m) }
+func (*SSTRequest) ProtoMessage()    {}
+func (*SSTRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_90c05566c01c366f, []int{11}
+}
+
+func (m *SSTRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SSTRequest.Unmarshal(m, b)
+}
+func (m *SSTRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SSTRequest.Marshal(b, m, deterministic)
+}
+func (m *SSTRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SSTRequest.Merge(m, src)
+}
+func (m *SSTRequest) XXX_Size() int {
+	return xxx_messageInfo_SSTRequest.Size(m)
+}
+func (m *SSTRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SSTRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SSTRequest proto.InternalMessageInfo
+
+func (m *SSTRequest) GetStream() string {
+	if m != nil {
+		return m.Stream
+	}
+	return ""
+}
+
+func (m *SSTRequest) GetShard() uint64 {
+	if m != nil {
+		return m.Shard
+	}
+	return 0
+}
+
+func (m *SSTRequest) GetToOffset() uint64 {
+	if m != nil {
+		return m.ToOffset
+	}
+	return 0
+}
+
+func (m *SSTRequest) GetFromOffset() uint64 {
+	if m != nil {
+		return m.FromOffset
+	}
+	return 0
+}
+
+type SSTResponseChunk struct {
+	Chunk                []byte   `protobuf:"bytes,1,opt,name=Chunk,proto3" json:"Chunk,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SSTResponseChunk) Reset()         { *m = SSTResponseChunk{} }
+func (m *SSTResponseChunk) String() string { return proto.CompactTextString(m) }
+func (*SSTResponseChunk) ProtoMessage()    {}
+func (*SSTResponseChunk) Descriptor() ([]byte, []int) {
+	return fileDescriptor_90c05566c01c366f, []int{12}
+}
+
+func (m *SSTResponseChunk) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SSTResponseChunk.Unmarshal(m, b)
+}
+func (m *SSTResponseChunk) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SSTResponseChunk.Marshal(b, m, deterministic)
+}
+func (m *SSTResponseChunk) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SSTResponseChunk.Merge(m, src)
+}
+func (m *SSTResponseChunk) XXX_Size() int {
+	return xxx_messageInfo_SSTResponseChunk.Size(m)
+}
+func (m *SSTResponseChunk) XXX_DiscardUnknown() {
+	xxx_messageInfo_SSTResponseChunk.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SSTResponseChunk proto.InternalMessageInfo
+
+func (m *SSTResponseChunk) GetChunk() []byte {
+	if m != nil {
+		return m.Chunk
+	}
+	return nil
+}
+
+type LoadRequest struct {
+	Stream               string   `protobuf:"bytes,1,opt,name=Stream,proto3" json:"Stream,omitempty"`
+	Shard                uint64   `protobuf:"varint,2,opt,name=Shard,proto3" json:"Shard,omitempty"`
+	SourceURL            string   `protobuf:"bytes,3,opt,name=SourceURL,proto3" json:"SourceURL,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LoadRequest) Reset()         { *m = LoadRequest{} }
+func (m *LoadRequest) String() string { return proto.CompactTextString(m) }
+func (*LoadRequest) ProtoMessage()    {}
+func (*LoadRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_90c05566c01c366f, []int{13}
+}
+
+func (m *LoadRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LoadRequest.Unmarshal(m, b)
+}
+func (m *LoadRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LoadRequest.Marshal(b, m, deterministic)
+}
+func (m *LoadRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LoadRequest.Merge(m, src)
+}
+func (m *LoadRequest) XXX_Size() int {
+	return xxx_messageInfo_LoadRequest.Size(m)
+}
+func (m *LoadRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_LoadRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LoadRequest proto.InternalMessageInfo
+
+func (m *LoadRequest) GetStream() string {
+	if m != nil {
+		return m.Stream
+	}
+	return ""
+}
+
+func (m *LoadRequest) GetShard() uint64 {
+	if m != nil {
+		return m.Shard
+	}
+	return 0
+}
+
+func (m *LoadRequest) GetSourceURL() string {
+	if m != nil {
+		return m.SourceURL
+	}
+	return ""
+}
+
+type DumpRequest struct {
+	Stream               string   `protobuf:"bytes,1,opt,name=Stream,proto3" json:"Stream,omitempty"`
+	Shard                uint64   `protobuf:"varint,2,opt,name=Shard,proto3" json:"Shard,omitempty"`
+	DestinationURL       string   `protobuf:"bytes,3,opt,name=DestinationURL,proto3" json:"DestinationURL,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpRequest) Reset()         { *m = DumpRequest{} }
+func (m *DumpRequest) String() string { return proto.CompactTextString(m) }
+func (*DumpRequest) ProtoMessage()    {}
+func (*DumpRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_90c05566c01c366f, []int{14}
+}
+
+func (m *DumpRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpRequest.Unmarshal(m, b)
+}
+func (m *DumpRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpRequest.Marshal(b, m, deterministic)
+}
+func (m *DumpRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpRequest.Merge(m, src)
+}
+func (m *DumpRequest) XXX_Size() int {
+	return xxx_messageInfo_DumpRequest.Size(m)
+}
+func (m *DumpRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpRequest proto.InternalMessageInfo
+
+func (m *DumpRequest) GetStream() string {
+	if m != nil {
+		return m.Stream
+	}
+	return ""
+}
+
+func (m *DumpRequest) GetShard() uint64 {
+	if m != nil {
+		return m.Shard
+	}
+	return 0
+}
+
+func (m *DumpRequest) GetDestinationURL() string {
+	if m != nil {
+		return m.DestinationURL
+	}
+	return ""
+}
+
+type DumpResponse struct {
+	StartedAt            int64    `protobuf:"varint,1,opt,name=StartedAt,proto3" json:"StartedAt,omitempty"`
+	ProgressBytes        int64    `protobuf:"varint,2,opt,name=ProgressBytes,proto3" json:"ProgressBytes,omitempty"`
+	TotalBytes           int64    `protobuf:"varint,3,opt,name=TotalBytes,proto3" json:"TotalBytes,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpResponse) Reset()         { *m = DumpResponse{} }
+func (m *DumpResponse) String() string { return proto.CompactTextString(m) }
+func (*DumpResponse) ProtoMessage()    {}
+func (*DumpResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_90c05566c01c366f, []int{15}
+}
+
+func (m *DumpResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpResponse.Unmarshal(m, b)
+}
+func (m *DumpResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpResponse.Marshal(b, m, deterministic)
+}
+func (m *DumpResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpResponse.Merge(m, src)
+}
+func (m *DumpResponse) XXX_Size() int {
+	return xxx_messageInfo_DumpResponse.Size(m)
+}
+func (m *DumpResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpResponse proto.InternalMessageInfo
+
+func (m *DumpResponse) GetStartedAt() int64 {
+	if m != nil {
+		return m.StartedAt
+	}
+	return 0
+}
+
+func (m *DumpResponse) GetProgressBytes() int64 {
+	if m != nil {
+		return m.ProgressBytes
+	}
+	return 0
+}
+
+func (m *DumpResponse) GetTotalBytes() int64 {
+	if m != nil {
+		return m.TotalBytes
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*Record)(nil), "api.Record")
 	proto.RegisterType((*PutRecordsRequest)(nil), "api.PutRecordsRequest")
 	proto.RegisterType((*PutRecordsResponse)(nil), "api.PutRecordsResponse")
 	proto.RegisterType((*GetRecordsRequest)(nil), "api.GetRecordsRequest")
 	proto.RegisterType((*GetRecordsResponse)(nil), "api.GetRecordsResponse")
-	proto.RegisterType((*DumpRequest)(nil), "api.DumpRequest")
-	proto.RegisterType((*DumpResponse)(nil), "api.DumpResponse")
-	proto.RegisterType((*SSTRequest)(nil), "api.SSTRequest")
-	proto.RegisterType((*SSTResponseChunk)(nil), "api.SSTResponseChunk")
-	proto.RegisterType((*LoadRequest)(nil), "api.LoadRequest")
 	proto.RegisterType((*LoadResponse)(nil), "api.LoadResponse")
 	proto.RegisterType((*TopicMetadata)(nil), "api.TopicMetadata")
 	proto.RegisterType((*ListTopicsRequest)(nil), "api.ListTopicsRequest")
 	proto.RegisterType((*ListTopicsResponse)(nil), "api.ListTopicsResponse")
 	proto.RegisterType((*GetTopicsRequest)(nil), "api.GetTopicsRequest")
 	proto.RegisterType((*GetTopicsResponse)(nil), "api.GetTopicsResponse")
+	proto.RegisterType((*SSTRequest)(nil), "api.SSTRequest")
+	proto.RegisterType((*SSTResponseChunk)(nil), "api.SSTResponseChunk")
+	proto.RegisterType((*LoadRequest)(nil), "api.LoadRequest")
+	proto.RegisterType((*DumpRequest)(nil), "api.DumpRequest")
+	proto.RegisterType((*DumpResponse)(nil), "api.DumpResponse")
 }
 
 func init() { proto.RegisterFile("nest.proto", fileDescriptor_90c05566c01c366f) }
 
 var fileDescriptor_90c05566c01c366f = []byte{
-	// 635 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0xdd, 0x6e, 0xd3, 0x4c,
-	0x10, 0x6d, 0xea, 0xf4, 0x27, 0x93, 0xb4, 0x5f, 0x33, 0x6a, 0xfb, 0x59, 0x51, 0x85, 0xa2, 0x15,
-	0xa0, 0x48, 0x85, 0x00, 0x45, 0xdc, 0x14, 0x89, 0xaa, 0xb4, 0xa2, 0x20, 0xa5, 0x34, 0x5a, 0x1b,
-	0xee, 0x97, 0x66, 0x5a, 0x2c, 0x1a, 0xaf, 0xf1, 0xae, 0x2f, 0xca, 0x9b, 0xf1, 0x02, 0x3c, 0x17,
-	0xf2, 0x7a, 0x1d, 0xff, 0x71, 0x11, 0x71, 0xc1, 0x5d, 0xe6, 0xcc, 0xec, 0x99, 0xd9, 0xe3, 0x33,
-	0x1b, 0x80, 0x90, 0x94, 0x1e, 0x47, 0xb1, 0xd4, 0x12, 0x1d, 0x11, 0x05, 0xec, 0x33, 0xac, 0x73,
-	0xba, 0x96, 0xf1, 0x0c, 0x0f, 0xa0, 0xe3, 0x07, 0x73, 0x52, 0x5a, 0xcc, 0x23, 0xb7, 0x35, 0x6c,
-	0x8d, 0x1c, 0x5e, 0x00, 0xb8, 0x0b, 0x6b, 0xbe, 0x8c, 0x82, 0x6b, 0x77, 0x75, 0xd8, 0x1a, 0xf5,
-	0x78, 0x16, 0xa0, 0x0b, 0x1b, 0x53, 0x71, 0x7f, 0x27, 0xc5, 0xcc, 0x75, 0x0c, 0x9e, 0x87, 0xec,
-	0x18, 0xfa, 0xd3, 0x44, 0x67, 0xd4, 0x8a, 0xd3, 0xf7, 0x84, 0x94, 0xc6, 0x47, 0xb0, 0x61, 0x11,
-	0xb7, 0x35, 0x74, 0x46, 0xdd, 0xa3, 0xee, 0x58, 0x44, 0xc1, 0x38, 0xc3, 0x78, 0x9e, 0x63, 0xbb,
-	0x80, 0xe5, 0xb3, 0x2a, 0x92, 0xa1, 0x22, 0x76, 0x05, 0xfd, 0x0b, 0xaa, 0x33, 0x3e, 0x00, 0x78,
-	0x17, 0xcb, 0xf9, 0xd5, 0xcd, 0x8d, 0x22, 0x6d, 0xa7, 0x2e, 0x21, 0x38, 0x80, 0xcd, 0xa9, 0xd0,
-	0x9a, 0xe2, 0x50, 0xb9, 0xab, 0x43, 0x67, 0xd4, 0xe3, 0x8b, 0x98, 0xbd, 0x06, 0x2c, 0x13, 0x66,
-	0x6d, 0x96, 0x9d, 0xf1, 0x15, 0x74, 0xcf, 0x93, 0x79, 0x94, 0xcf, 0xf1, 0x18, 0xb6, 0xcf, 0x49,
-	0xe9, 0x20, 0x14, 0x3a, 0x90, 0xe1, 0x27, 0x3e, 0x31, 0xb3, 0x74, 0x78, 0x0d, 0x65, 0x31, 0xf4,
-	0xb2, 0x63, 0xb6, 0xdb, 0x01, 0x74, 0x3c, 0x2d, 0x62, 0x4d, 0xb3, 0xd3, 0x7c, 0xfc, 0x02, 0xc0,
-	0x87, 0xb0, 0x35, 0x8d, 0xe5, 0x6d, 0x4c, 0x4a, 0xbd, 0xbd, 0xd7, 0xa4, 0x8c, 0xf8, 0x0e, 0xaf,
-	0x82, 0xa9, 0x06, 0xbe, 0xd4, 0xe2, 0x2e, 0x2b, 0x71, 0x32, 0x0d, 0x0a, 0x84, 0xbd, 0x07, 0xf0,
-	0x3c, 0x3f, 0x9f, 0x74, 0x00, 0x9b, 0xbe, 0x2c, 0xe9, 0xd5, 0xe6, 0x8b, 0xb8, 0xa6, 0xe6, 0xaa,
-	0xc9, 0x96, 0x10, 0x36, 0x82, 0x1d, 0xc3, 0x94, 0x0d, 0x7f, 0xf6, 0x35, 0x09, 0xbf, 0xa5, 0xc6,
-	0x30, 0x3f, 0x0c, 0x59, 0x8f, 0x67, 0x01, 0x3b, 0x84, 0xee, 0x44, 0x8a, 0x59, 0xde, 0x34, 0xbd,
-	0xa6, 0x4c, 0xe2, 0x6b, 0x2a, 0x94, 0x29, 0x80, 0x54, 0x94, 0xac, 0xf8, 0x1f, 0x8a, 0xf2, 0xab,
-	0x05, 0x5b, 0xc6, 0xc3, 0x97, 0xa4, 0xc5, 0x4c, 0x68, 0x81, 0x08, 0xed, 0x8f, 0x62, 0x4e, 0xf6,
-	0x1e, 0xe6, 0x37, 0x32, 0xe8, 0x5d, 0x92, 0x52, 0xe2, 0x96, 0xce, 0x64, 0x12, 0xe6, 0x92, 0x54,
-	0x30, 0x3c, 0x04, 0x98, 0x08, 0x65, 0x7d, 0x64, 0x3a, 0xd5, 0x3c, 0x53, 0x4a, 0xe3, 0x10, 0xba,
-	0x5e, 0xf0, 0x83, 0x3e, 0x84, 0xd9, 0x5c, 0x6d, 0xc3, 0x57, 0x86, 0x70, 0x0c, 0x78, 0x91, 0x90,
-	0x52, 0x34, 0x3b, 0x93, 0xa1, 0xa6, 0x50, 0xfb, 0xf7, 0x11, 0xb9, 0x6b, 0x46, 0xb3, 0x3f, 0x64,
-	0xd8, 0x53, 0xe8, 0x4f, 0x02, 0xa5, 0xcd, 0x5d, 0x16, 0x6b, 0x61, 0xf6, 0xd2, 0xd8, 0xdc, 0x5e,
-	0x27, 0x0f, 0xd9, 0x14, 0xb0, 0x5c, 0x6e, 0x15, 0x3f, 0x86, 0xed, 0x8a, 0x18, 0xb9, 0xf7, 0xd1,
-	0xdc, 0xa3, 0x92, 0xe2, 0xb5, 0x4a, 0xf6, 0x04, 0x76, 0x2e, 0x68, 0xe9, 0xfe, 0xc7, 0x66, 0x8b,
-	0x6b, 0xed, 0x97, 0xdb, 0xb9, 0xa3, 0x9f, 0x0e, 0x6c, 0x5a, 0xe9, 0x15, 0xbe, 0x00, 0xc7, 0xf3,
-	0x7c, 0xfc, 0xcf, 0x54, 0x16, 0xfe, 0x1e, 0xec, 0x15, 0x40, 0xc9, 0xa6, 0x6c, 0xe5, 0x79, 0x0b,
-	0x9f, 0x41, 0x3b, 0x5d, 0x3e, 0xdc, 0x31, 0x25, 0xa5, 0xf5, 0x1d, 0xf4, 0x4b, 0x88, 0x7d, 0x6e,
-	0xd2, 0x03, 0x27, 0x00, 0xc5, 0x43, 0x84, 0xfb, 0xa6, 0xa8, 0xf1, 0xaa, 0x0d, 0xfe, 0x6f, 0xe0,
-	0x39, 0x05, 0x9e, 0xc3, 0x96, 0xa7, 0x63, 0x12, 0xf3, 0x2a, 0x47, 0xe3, 0x1d, 0xb3, 0x1c, 0xcd,
-	0xe7, 0xc8, 0x8c, 0x71, 0x0a, 0x50, 0x64, 0xfe, 0x8e, 0xe2, 0x04, 0xa0, 0xf8, 0xec, 0x96, 0xa2,
-	0x61, 0x1b, 0x4b, 0xd1, 0xf4, 0x07, 0x5b, 0xc1, 0x37, 0xd0, 0x59, 0x7c, 0x37, 0xdc, 0xcb, 0x5b,
-	0x55, 0x8f, 0xef, 0xd7, 0xe1, 0x62, 0x80, 0x2f, 0xeb, 0xe6, 0x3f, 0xe7, 0xe5, 0xef, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0xa1, 0xc6, 0x94, 0x6d, 0x81, 0x06, 0x00, 0x00,
+	// 665 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0xdf, 0x6f, 0xd3, 0x30,
+	0x10, 0x5e, 0x96, 0xee, 0x47, 0xaf, 0xdd, 0x58, 0x4f, 0xdb, 0x88, 0xaa, 0x09, 0x55, 0x16, 0xa0,
+	0x4a, 0x40, 0x81, 0xf1, 0x36, 0x24, 0xa6, 0xb1, 0x89, 0x09, 0xa9, 0x63, 0x95, 0x13, 0x90, 0x78,
+	0x34, 0x8d, 0xb7, 0x45, 0x2c, 0x71, 0x88, 0x1d, 0xa4, 0xf1, 0x07, 0xf2, 0x1f, 0xf0, 0xff, 0xa0,
+	0xd8, 0x4e, 0x93, 0xa6, 0x3c, 0x4c, 0x7d, 0xe0, 0xad, 0xf7, 0x9d, 0xf3, 0x7d, 0x77, 0xe7, 0xef,
+	0x5c, 0x80, 0x84, 0x4b, 0x35, 0x4a, 0x33, 0xa1, 0x04, 0xba, 0x2c, 0x8d, 0xc8, 0x17, 0x58, 0xa7,
+	0x7c, 0x2a, 0xb2, 0x10, 0x0f, 0xa0, 0x1d, 0x44, 0x31, 0x97, 0x8a, 0xc5, 0xa9, 0xe7, 0x0c, 0x9c,
+	0xa1, 0x4b, 0x2b, 0x00, 0x77, 0x61, 0x2d, 0x10, 0x69, 0x34, 0xf5, 0x56, 0x07, 0xce, 0xb0, 0x4b,
+	0x4d, 0x80, 0x1e, 0x6c, 0x4c, 0xd8, 0xdd, 0xad, 0x60, 0xa1, 0xe7, 0x6a, 0xbc, 0x0c, 0xc9, 0x11,
+	0xf4, 0x26, 0xb9, 0x32, 0xd4, 0x92, 0xf2, 0x1f, 0x39, 0x97, 0x0a, 0x9f, 0xc0, 0x86, 0x45, 0x3c,
+	0x67, 0xe0, 0x0e, 0x3b, 0x87, 0x9d, 0x11, 0x4b, 0xa3, 0x91, 0xc1, 0x68, 0x99, 0x23, 0xbb, 0x80,
+	0xf5, 0x6f, 0x65, 0x2a, 0x12, 0xc9, 0xc9, 0x25, 0xf4, 0xce, 0x79, 0x93, 0xf1, 0x11, 0xc0, 0x87,
+	0x4c, 0xc4, 0x97, 0x57, 0x57, 0x92, 0x2b, 0x5b, 0x75, 0x0d, 0xc1, 0x3e, 0x6c, 0x4e, 0x98, 0x52,
+	0x3c, 0x4b, 0xa4, 0xb7, 0x3a, 0x70, 0x87, 0x5d, 0x3a, 0x8b, 0xc9, 0x5b, 0xc0, 0x3a, 0xa1, 0x91,
+	0xb9, 0x6f, 0x8d, 0x19, 0x74, 0xc7, 0x82, 0x85, 0xb3, 0xcf, 0x0e, 0xa0, 0xed, 0x2b, 0x96, 0x29,
+	0x1e, 0x9e, 0x94, 0x75, 0x54, 0x00, 0x3e, 0x86, 0xad, 0x49, 0x26, 0xae, 0x33, 0x2e, 0xe5, 0xfb,
+	0x3b, 0xc5, 0xa5, 0x9e, 0xa2, 0x4b, 0xe7, 0xc1, 0xa2, 0x99, 0x40, 0x28, 0x76, 0x6b, 0x8e, 0xb8,
+	0xa6, 0x99, 0x0a, 0x21, 0xbf, 0x1d, 0xd8, 0xd2, 0x73, 0xbf, 0xe0, 0x8a, 0x85, 0x4c, 0x31, 0x44,
+	0x68, 0x7d, 0x62, 0x31, 0xd7, 0x82, 0x5d, 0xaa, 0x7f, 0x23, 0x81, 0xee, 0x05, 0x97, 0x92, 0x5d,
+	0xf3, 0x53, 0x91, 0x27, 0x4a, 0x4b, 0xb5, 0xe8, 0x1c, 0x86, 0xcf, 0x00, 0xc6, 0x4c, 0xda, 0xde,
+	0xb5, 0x52, 0xa3, 0xcf, 0x5a, 0x1a, 0x07, 0xd0, 0xf1, 0xa3, 0x5f, 0xfc, 0x63, 0x62, 0xea, 0x6a,
+	0x69, 0xbe, 0x3a, 0x84, 0x23, 0xc0, 0xf3, 0x9c, 0x4b, 0xc9, 0xc3, 0x53, 0x91, 0x28, 0x9e, 0xa8,
+	0xe0, 0x2e, 0xe5, 0xde, 0xda, 0xc0, 0x19, 0xb6, 0xe9, 0x3f, 0x32, 0xe4, 0x05, 0xf4, 0xc6, 0x91,
+	0x54, 0xba, 0x97, 0xd9, 0x55, 0x6a, 0x2f, 0xe9, 0xab, 0xb1, 0xed, 0x94, 0x21, 0x99, 0x00, 0xd6,
+	0x8f, 0xdb, 0x89, 0x1f, 0xc1, 0xf6, 0xdc, 0x30, 0xca, 0xfb, 0x42, 0xdd, 0xc7, 0x5c, 0x8a, 0x36,
+	0x4e, 0x92, 0xe7, 0xb0, 0x73, 0xce, 0xef, 0xad, 0x7f, 0xa4, 0x9d, 0xd7, 0x90, 0xbf, 0xa7, 0x4f,
+	0x7e, 0x02, 0xf8, 0x7e, 0x50, 0x6a, 0xec, 0xc3, 0xba, 0xaf, 0x32, 0xce, 0x62, 0x2d, 0xd1, 0xa6,
+	0x36, 0x2a, 0xb6, 0xcb, 0xbf, 0x61, 0x59, 0x68, 0x2f, 0xcb, 0x04, 0x85, 0x79, 0x03, 0x61, 0xad,
+	0xed, 0xea, 0xc4, 0x2c, 0x6e, 0x18, 0xdf, 0xdc, 0x49, 0x0d, 0x21, 0x43, 0xd8, 0xd1, 0xba, 0xa6,
+	0xda, 0xd3, 0x9b, 0x3c, 0xf9, 0x5e, 0xa8, 0xe8, 0x1f, 0xb6, 0x3f, 0x13, 0x90, 0xaf, 0xd0, 0x31,
+	0x4e, 0x5e, 0xa6, 0xc4, 0xc2, 0xf6, 0x22, 0xcf, 0xa6, 0xfc, 0x33, 0x1d, 0xeb, 0x1a, 0xdb, 0xb4,
+	0x02, 0xc8, 0x14, 0x3a, 0x67, 0x79, 0x9c, 0x2e, 0x47, 0xfd, 0x14, 0xb6, 0xcf, 0xb8, 0x54, 0x51,
+	0xc2, 0x54, 0x24, 0x92, 0x8a, 0xbf, 0x81, 0x16, 0x9b, 0x68, 0x44, 0xfe, 0xdf, 0x26, 0x1e, 0xfe,
+	0x59, 0x85, 0x4d, 0xbb, 0x50, 0x12, 0x8f, 0x01, 0xaa, 0xe7, 0x0a, 0xf7, 0xb5, 0x0d, 0x16, 0xde,
+	0xbe, 0xfe, 0xc3, 0x05, 0xdc, 0xbe, 0x6b, 0x2b, 0x78, 0x06, 0x5b, 0x66, 0x12, 0xf3, 0x1c, 0x0b,
+	0xaf, 0x9d, 0xe5, 0x58, 0x7c, 0xb4, 0xc8, 0xca, 0x2b, 0x07, 0x4f, 0x00, 0xaa, 0xcc, 0x72, 0x14,
+	0xc7, 0x00, 0xd5, 0xa2, 0x59, 0x8a, 0x85, 0x45, 0xb5, 0x14, 0x8b, 0x1b, 0x49, 0x56, 0xf0, 0x1d,
+	0xb4, 0x67, 0x9b, 0x82, 0x7b, 0xa5, 0xd4, 0xfc, 0xe7, 0xfb, 0x4d, 0xb8, 0x2a, 0xe0, 0x30, 0x86,
+	0x0d, 0x33, 0x09, 0x89, 0xaf, 0xc1, 0xf5, 0xfd, 0x00, 0x1f, 0xe8, 0xd3, 0xd5, 0x0a, 0xf5, 0xf7,
+	0x2a, 0xa0, 0xe6, 0x6d, 0x5d, 0xfe, 0x4b, 0x68, 0x15, 0x4e, 0xc0, 0x1d, 0x7d, 0xa4, 0xe6, 0xbc,
+	0x7e, 0xaf, 0x86, 0x54, 0x72, 0xdf, 0xd6, 0xf5, 0x1f, 0xe1, 0x9b, 0xbf, 0x01, 0x00, 0x00, 0xff,
+	0xff, 0xcc, 0x8f, 0xce, 0x18, 0x16, 0x07, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -813,9 +863,7 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type MessagesClient interface {
-	SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Messages_SSTClient, error)
-	Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Messages_DumpClient, error)
-	//rpc Load(LoadRequest) returns (stream LoadResponse) {}
+	// rpc Load(LoadRequest) returns (stream LoadResponse) {}
 	PutRecords(ctx context.Context, in *PutRecordsRequest, opts ...grpc.CallOption) (*PutRecordsResponse, error)
 	StreamRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_StreamRecordsClient, error)
 	GetRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_GetRecordsClient, error)
@@ -831,70 +879,6 @@ func NewMessagesClient(cc *grpc.ClientConn) MessagesClient {
 	return &messagesClient{cc}
 }
 
-func (c *messagesClient) SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Messages_SSTClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[0], "/api.Messages/SST", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesSSTClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_SSTClient interface {
-	Recv() (*SSTResponseChunk, error)
-	grpc.ClientStream
-}
-
-type messagesSSTClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesSSTClient) Recv() (*SSTResponseChunk, error) {
-	m := new(SSTResponseChunk)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *messagesClient) Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Messages_DumpClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[1], "/api.Messages/Dump", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &messagesDumpClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Messages_DumpClient interface {
-	Recv() (*DumpResponse, error)
-	grpc.ClientStream
-}
-
-type messagesDumpClient struct {
-	grpc.ClientStream
-}
-
-func (x *messagesDumpClient) Recv() (*DumpResponse, error) {
-	m := new(DumpResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *messagesClient) PutRecords(ctx context.Context, in *PutRecordsRequest, opts ...grpc.CallOption) (*PutRecordsResponse, error) {
 	out := new(PutRecordsResponse)
 	err := c.cc.Invoke(ctx, "/api.Messages/PutRecords", in, out, opts...)
@@ -905,7 +889,7 @@ func (c *messagesClient) PutRecords(ctx context.Context, in *PutRecordsRequest, 
 }
 
 func (c *messagesClient) StreamRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_StreamRecordsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[2], "/api.Messages/StreamRecords", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[0], "/api.Messages/StreamRecords", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -937,7 +921,7 @@ func (x *messagesStreamRecordsClient) Recv() (*GetRecordsResponse, error) {
 }
 
 func (c *messagesClient) GetRecords(ctx context.Context, in *GetRecordsRequest, opts ...grpc.CallOption) (Messages_GetRecordsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[3], "/api.Messages/GetRecords", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[1], "/api.Messages/GetRecords", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -978,7 +962,7 @@ func (c *messagesClient) ListTopics(ctx context.Context, in *ListTopicsRequest, 
 }
 
 func (c *messagesClient) GetTopics(ctx context.Context, in *GetTopicsRequest, opts ...grpc.CallOption) (Messages_GetTopicsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[4], "/api.Messages/GetTopics", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Messages_serviceDesc.Streams[2], "/api.Messages/GetTopics", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1011,9 +995,7 @@ func (x *messagesGetTopicsClient) Recv() (*GetTopicsResponse, error) {
 
 // MessagesServer is the server API for Messages service.
 type MessagesServer interface {
-	SST(*SSTRequest, Messages_SSTServer) error
-	Dump(*DumpRequest, Messages_DumpServer) error
-	//rpc Load(LoadRequest) returns (stream LoadResponse) {}
+	// rpc Load(LoadRequest) returns (stream LoadResponse) {}
 	PutRecords(context.Context, *PutRecordsRequest) (*PutRecordsResponse, error)
 	StreamRecords(*GetRecordsRequest, Messages_StreamRecordsServer) error
 	GetRecords(*GetRecordsRequest, Messages_GetRecordsServer) error
@@ -1025,12 +1007,6 @@ type MessagesServer interface {
 type UnimplementedMessagesServer struct {
 }
 
-func (*UnimplementedMessagesServer) SST(req *SSTRequest, srv Messages_SSTServer) error {
-	return status.Errorf(codes.Unimplemented, "method SST not implemented")
-}
-func (*UnimplementedMessagesServer) Dump(req *DumpRequest, srv Messages_DumpServer) error {
-	return status.Errorf(codes.Unimplemented, "method Dump not implemented")
-}
 func (*UnimplementedMessagesServer) PutRecords(ctx context.Context, req *PutRecordsRequest) (*PutRecordsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutRecords not implemented")
 }
@@ -1049,48 +1025,6 @@ func (*UnimplementedMessagesServer) GetTopics(req *GetTopicsRequest, srv Message
 
 func RegisterMessagesServer(s *grpc.Server, srv MessagesServer) {
 	s.RegisterService(&_Messages_serviceDesc, srv)
-}
-
-func _Messages_SST_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(SSTRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).SST(m, &messagesSSTServer{stream})
-}
-
-type Messages_SSTServer interface {
-	Send(*SSTResponseChunk) error
-	grpc.ServerStream
-}
-
-type messagesSSTServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesSSTServer) Send(m *SSTResponseChunk) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Messages_Dump_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(DumpRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MessagesServer).Dump(m, &messagesDumpServer{stream})
-}
-
-type Messages_DumpServer interface {
-	Send(*DumpResponse) error
-	grpc.ServerStream
-}
-
-type messagesDumpServer struct {
-	grpc.ServerStream
-}
-
-func (x *messagesDumpServer) Send(m *DumpResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _Messages_PutRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1207,16 +1141,6 @@ var _Messages_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "SST",
-			Handler:       _Messages_SST_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "Dump",
-			Handler:       _Messages_Dump_Handler,
-			ServerStreams: true,
-		},
-		{
 			StreamName:    "StreamRecords",
 			Handler:       _Messages_StreamRecords_Handler,
 			ServerStreams: true,
@@ -1229,6 +1153,168 @@ var _Messages_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetTopics",
 			Handler:       _Messages_GetTopics_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "nest.proto",
+}
+
+// StreamsClient is the client API for Streams service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type StreamsClient interface {
+	SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Streams_SSTClient, error)
+	Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Streams_DumpClient, error)
+}
+
+type streamsClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewStreamsClient(cc *grpc.ClientConn) StreamsClient {
+	return &streamsClient{cc}
+}
+
+func (c *streamsClient) SST(ctx context.Context, in *SSTRequest, opts ...grpc.CallOption) (Streams_SSTClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Streams_serviceDesc.Streams[0], "/api.Streams/SST", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &streamsSSTClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Streams_SSTClient interface {
+	Recv() (*SSTResponseChunk, error)
+	grpc.ClientStream
+}
+
+type streamsSSTClient struct {
+	grpc.ClientStream
+}
+
+func (x *streamsSSTClient) Recv() (*SSTResponseChunk, error) {
+	m := new(SSTResponseChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *streamsClient) Dump(ctx context.Context, in *DumpRequest, opts ...grpc.CallOption) (Streams_DumpClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Streams_serviceDesc.Streams[1], "/api.Streams/Dump", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &streamsDumpClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Streams_DumpClient interface {
+	Recv() (*DumpResponse, error)
+	grpc.ClientStream
+}
+
+type streamsDumpClient struct {
+	grpc.ClientStream
+}
+
+func (x *streamsDumpClient) Recv() (*DumpResponse, error) {
+	m := new(DumpResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// StreamsServer is the server API for Streams service.
+type StreamsServer interface {
+	SST(*SSTRequest, Streams_SSTServer) error
+	Dump(*DumpRequest, Streams_DumpServer) error
+}
+
+// UnimplementedStreamsServer can be embedded to have forward compatible implementations.
+type UnimplementedStreamsServer struct {
+}
+
+func (*UnimplementedStreamsServer) SST(req *SSTRequest, srv Streams_SSTServer) error {
+	return status.Errorf(codes.Unimplemented, "method SST not implemented")
+}
+func (*UnimplementedStreamsServer) Dump(req *DumpRequest, srv Streams_DumpServer) error {
+	return status.Errorf(codes.Unimplemented, "method Dump not implemented")
+}
+
+func RegisterStreamsServer(s *grpc.Server, srv StreamsServer) {
+	s.RegisterService(&_Streams_serviceDesc, srv)
+}
+
+func _Streams_SST_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SSTRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StreamsServer).SST(m, &streamsSSTServer{stream})
+}
+
+type Streams_SSTServer interface {
+	Send(*SSTResponseChunk) error
+	grpc.ServerStream
+}
+
+type streamsSSTServer struct {
+	grpc.ServerStream
+}
+
+func (x *streamsSSTServer) Send(m *SSTResponseChunk) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _Streams_Dump_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DumpRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StreamsServer).Dump(m, &streamsDumpServer{stream})
+}
+
+type Streams_DumpServer interface {
+	Send(*DumpResponse) error
+	grpc.ServerStream
+}
+
+type streamsDumpServer struct {
+	grpc.ServerStream
+}
+
+func (x *streamsDumpServer) Send(m *DumpResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+var _Streams_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "api.Streams",
+	HandlerType: (*StreamsServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SST",
+			Handler:       _Streams_SST_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Dump",
+			Handler:       _Streams_Dump_Handler,
 			ServerStreams: true,
 		},
 	},

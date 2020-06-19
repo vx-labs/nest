@@ -1,15 +1,13 @@
 syntax = "proto3";
 package fsm;
 
-import "github.com/vx-labs/nest/nest/api/nest.proto";
-
 message PeerLost {
   uint64 Peer = 1;
 }
 message StateTransitionSet { repeated StateTransition events = 1; }
 
 message RecordsPut {
-  repeated api.Record Records = 1;
+  repeated bytes Records = 1;
 }
 
 message StateTransition {

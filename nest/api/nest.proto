@@ -15,18 +15,6 @@ message GetRecordsRequest {
   repeated bytes Patterns = 2;
 }
 message GetRecordsResponse { repeated Record Records = 1; }
-message DumpRequest { string DestinationURL = 1; }
-message DumpResponse {
-  int64 StartedAt = 1;
-  int64 ProgressBytes = 2;
-  int64 TotalBytes = 3;
-}
-message SSTRequest {
-  uint64 ToOffset = 1;
-  uint64 FromOffset = 2;
-};
-message SSTResponseChunk { bytes Chunk = 1; };
-message LoadRequest { string SourceURL = 1; }
 message LoadResponse {
   int64 StartedAt = 1;
   int64 ProgressBytes = 2;
@@ -48,12 +36,39 @@ message GetTopicsRequest { bytes Pattern = 1; }
 message GetTopicsResponse { repeated Record Records = 1; }
 
 service Messages {
-  rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
-  rpc Dump(DumpRequest) returns (stream DumpResponse) {}
-  //rpc Load(LoadRequest) returns (stream LoadResponse) {}
+  // rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc StreamRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
   rpc GetTopics(GetTopicsRequest) returns (stream GetTopicsResponse) {}
+}
+
+message SSTRequest {
+  string Stream = 1;
+  uint64 Shard = 2;
+  uint64 ToOffset = 3;
+  uint64 FromOffset = 4;
+};
+message SSTResponseChunk { bytes Chunk = 1; };
+message LoadRequest {
+  string Stream = 1;
+  uint64 Shard = 2;
+  string SourceURL = 3;
+}
+
+message DumpRequest {
+  string Stream = 1;
+  uint64 Shard = 2;
+  string DestinationURL = 3;
+}
+message DumpResponse {
+  int64 StartedAt = 1;
+  int64 ProgressBytes = 2;
+  int64 TotalBytes = 3;
+}
+
+service Streams {
+  rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
+  rpc Dump(DumpRequest) returns (stream DumpResponse) {}
 }

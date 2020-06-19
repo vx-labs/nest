@@ -132,7 +132,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			conn, l := mustDial(ctx, cmd, config)
-			stream, err := api.NewMessagesClient(conn).Dump(ctx, &api.DumpRequest{
+			stream, err := api.NewStreamsClient(conn).Dump(ctx, &api.DumpRequest{
 				DestinationURL: config.GetString("destination-url"),
 			})
 			if err != nil {
