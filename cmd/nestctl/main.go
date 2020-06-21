@@ -70,6 +70,7 @@ func main() {
 
 	rootCmd.AddCommand(raft)
 	rootCmd.AddCommand(Messages(ctx, config))
+	rootCmd.AddCommand(Events(ctx, config))
 	rootCmd.AddCommand(Topics(ctx, config))
 	rootCmd.PersistentFlags().BoolP("insecure", "k", false, "Disable GRPC client-side TLS validation.")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Increase log verbosity.")

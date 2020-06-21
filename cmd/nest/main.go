@@ -200,9 +200,16 @@ func main() {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
 
+			eventsLog, err := nest.NewEventsLog(ctx, eventsController.Shards()[0])
+			if err != nil {
+				nest.L(ctx).Fatal("failed to load events log", zap.Error(err))
+			}
+
 			waspReceiver := nest.NewWaspReceiver(messageLog)
 			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)
+			eventsServer := nest.NewEventsServer(eventsLog)
+			eventsServer.Serve(server)
 			waspReceiver.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("cluster listener stopped")
@@ -251,10 +258,17 @@ func main() {
 			nest.L(ctx).Debug("rpc server stopped")
 			clusterListener.Close()
 			nest.L(ctx).Debug("rpc listener stopped")
-			clusterMultiNode.Shutdown()
 			cancel()
 			wg.Wait()
 			nest.L(ctx).Debug("asynchronous operations stopped")
+			eventsController.Stop()
+			messageController.Stop()
+			err = clusterMultiNode.Shutdown()
+			if err != nil {
+				nest.L(ctx).Error("failed to shutdown cluster", zap.Error(err))
+			} else {
+				nest.L(ctx).Debug("cluster stopped")
+			}
 			nest.L(ctx).Info("nest successfully stopped")
 		},
 	}

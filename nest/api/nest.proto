@@ -72,3 +72,34 @@ service Streams {
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
 }
+
+message EventAttribute {
+  string Key = 1;
+  string Value = 2;
+}
+message Event {
+  int64 Timestamp = 1;
+  string Tenant = 2;
+  string Service = 3;
+  string Kind = 4;
+  repeated EventAttribute Attributes = 5;
+}
+message PutEventRequest {
+  int64 Timestamp = 1;
+  string Tenant = 2;
+  string Service = 3;
+  string Kind = 4;
+  repeated EventAttribute Attributes = 5;
+}
+
+message PutEventResponse {}
+message GetEventRequest {
+  string Tenant = 1;
+  int64 FromOffset = 2;
+}
+message GetEventResponse { repeated Event Events = 1; }
+
+service Events {
+  rpc PutEvent(PutEventRequest) returns (PutEventResponse) {}
+  rpc GetEvents(GetEventRequest) returns (stream GetEventResponse) {}
+}

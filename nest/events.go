@@ -1,0 +1,62 @@
+package nest
+
+import (
+	"context"
+	"io"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
+)
+
+type EventProcessor func(context.Context, uint64, []*api.Event) error
+
+type EventsLog interface {
+	PutEvents(ctx context.Context, b []*api.Event) error
+	Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error
+}
+
+type eventsLog struct {
+	shard Shard
+}
+
+func NewEventsLog(ctx context.Context, shard Shard) (EventsLog, error) {
+	s := &eventsLog{
+		shard: shard,
+	}
+	return s, nil
+}
+
+func (s *eventsLog) PutEvents(ctx context.Context, b []*api.Event) error {
+	payloads := make([][]byte, len(b))
+	var err error
+	for idx, record := range b {
+		payloads[idx], err = proto.Marshal(record)
+		if err != nil {
+			return err
+		}
+	}
+	return s.shard.PutRecords(ctx, payloads)
+}
+
+func (s *eventsLog) Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error {
+	return s.shard.Consume(func(r io.ReadSeeker) error {
+		return consumer.Consume(ctx, r, EventDecoder(processor))
+	})
+}
+
+// RecordDecoder returns a stream.Processor decoding api.Record and passing them to the provided callback function
+func EventDecoder(processor func(context.Context, uint64, []*api.Event) error) stream.Processor {
+	return func(ctx context.Context, batch stream.Batch) error {
+		records := make([]*api.Event, len(batch.Records))
+		for idx, buf := range batch.Records {
+			record := &api.Event{}
+			err := proto.Unmarshal(buf, record)
+			if err != nil {
+				return err
+			}
+			records[idx] = record
+		}
+		return processor(ctx, batch.FirstOffset, records)
+	}
+}
