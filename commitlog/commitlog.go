@@ -32,6 +32,7 @@ type CommitLog interface {
 	ResolveTimestamp(ts uint64) uint64
 	Offset() uint64
 	Datadir() string
+	io.WriterTo
 }
 
 func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
@@ -204,6 +205,21 @@ func (e *commitLog) ReaderFromTimestamp(ts uint64) (ReadSeekCloser, error) {
 		segmentSize:    e.segmentMaxRecordCount,
 		currentReader:  r,
 	}, nil
+}
+func (e *commitLog) WriteTo(w io.Writer) (n int64, err error) {
+	var total int64 = 0
+	for _, id := range e.segments {
+		seg, err := e.readSegment(id)
+		if err != nil {
+			return total, err
+		}
+		n, err := seg.WriteTo(w)
+		total += n
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
 }
 func (e *commitLog) ReaderFrom(offset uint64) (ReadSeekCloser, error) {
 	idx := e.lookupOffset(offset)

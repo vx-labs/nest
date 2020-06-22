@@ -1,6 +1,7 @@
 package commitlog
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"testing"
@@ -95,7 +96,12 @@ func TestCommitLog(t *testing.T) {
 		}
 		_, err = r.Read(buf)
 		require.Equal(t, io.EOF, err)
-
+	})
+	t.Run("should allow being written in an io.Writer", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		n, err := clog.WriteTo(buf)
+		require.NoError(t, err)
+		require.Equal(t, int64(1600), n)
 	})
 }
 

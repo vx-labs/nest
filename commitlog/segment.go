@@ -32,6 +32,7 @@ type Segment interface {
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
 	Earliest() uint64
 	Latest() uint64
+	io.WriterTo
 }
 
 type segment struct {
@@ -90,6 +91,12 @@ func (i *segment) Size() uint64 {
 }
 func (i *segment) Name() string {
 	return i.fd.Name()
+}
+func (i *segment) WriteTo(w io.Writer) (n int64, err error) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+	i.fd.Seek(0, io.SeekStart)
+	return io.Copy(w, i.fd)
 }
 
 func createSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, error) {
