@@ -22,6 +22,7 @@ github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+Ce
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
+github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
@@ -359,6 +360,8 @@ github.com/vx-labs/wasp v1.3.3 h1:Pb4y89lqwpG+UKLH7Rc4g7TnTiY7jns9d6aR8ybUzyE=
 github.com/vx-labs/wasp v1.3.3/go.mod h1:TxXJAqAhU1AgnGtu0R8SHuVXM6WCxxL1A1gOU8vkBQo=
 github.com/vx-labs/wasp v1.4.0 h1:VfOvpDJ6nmHxCdK41wnHpsmzK7361vlyfIjrjhVzWiU=
 github.com/vx-labs/wasp v1.4.0/go.mod h1:TxXJAqAhU1AgnGtu0R8SHuVXM6WCxxL1A1gOU8vkBQo=
+github.com/vx-labs/wasp v1.5.0 h1:YDlWu3vqKuTvuLPc6vytobH/WTWHelgHjDCmNOnzQ2E=
+github.com/vx-labs/wasp v1.5.0/go.mod h1:TxXJAqAhU1AgnGtu0R8SHuVXM6WCxxL1A1gOU8vkBQo=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=

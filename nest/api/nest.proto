@@ -6,6 +6,8 @@ message Record {
   int64 Timestamp = 1;
   bytes Topic = 2;
   bytes Payload = 3;
+  bool Retained = 4;
+  string Sender = 5;
 }
 
 message PutRecordsRequest { repeated Record Records = 1; }

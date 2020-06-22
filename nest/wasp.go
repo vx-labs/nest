@@ -28,6 +28,8 @@ func (w *WaspReceiver) PutWaspRecords(ctx context.Context, in *taps.PutWaspRecor
 			Timestamp: in.WaspRecords[idx].Timestamp,
 			Payload:   in.WaspRecords[idx].Payload,
 			Topic:     in.WaspRecords[idx].Topic,
+			Retained:  in.WaspRecords[idx].Retained,
+			Sender:    in.WaspRecords[idx].Sender,
 		}
 	}
 	return &taps.PutWaspRecordsResponse{}, w.messages.PutRecords(ctx, records)
