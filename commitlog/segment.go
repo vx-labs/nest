@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sort"
 	"sync"
 )
 
@@ -25,6 +26,7 @@ type Segment interface {
 	Size() uint64
 	ReadEntryAt(buf []byte, logOffset int64) (Entry, error)
 	ReaderFrom(offset uint64) io.ReadSeeker
+	ReaderFromTimestamp(timestamp uint64) io.ReadSeeker
 	Delete() error
 	io.Closer
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
@@ -36,7 +38,8 @@ type segment struct {
 	currentOffset   uint64
 	currentPosition uint64
 	fd              *os.File
-	index           Index
+	offsetIndex     Index
+	timestampIndex  Index
 	maxRecordCount  uint64
 	path            string
 }
@@ -46,7 +49,11 @@ func segmentName(datadir string, id uint64) string {
 }
 
 func (s *segment) Close() error {
-	err := s.index.Close()
+	err := s.offsetIndex.Close()
+	if err != nil {
+		return err
+	}
+	err = s.timestampIndex.Close()
 	if err != nil {
 		return err
 	}
@@ -54,7 +61,13 @@ func (s *segment) Close() error {
 }
 func (s *segment) Delete() error {
 	s.Close()
-	err := os.Remove(s.index.FilePath())
+	s.offsetIndex.Close()
+	s.timestampIndex.Close()
+	err := os.Remove(s.offsetIndex.FilePath())
+	if err != nil {
+		return err
+	}
+	err = os.Remove(s.timestampIndex.FilePath())
 	if err != nil {
 		return err
 	}
@@ -82,7 +95,11 @@ func createSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, e
 	if fileExists(filename) {
 		return nil, ErrSegmentAlreadyExists
 	}
-	idx, err := createIndex(datadir, id, maxRecordCount)
+	idx, err := createIndex(datadir, "offsets", id, maxRecordCount)
+	if err != nil {
+		return nil, err
+	}
+	tidx, err := createIndex(datadir, "timestamps", id, maxRecordCount)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +113,8 @@ func createSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, e
 		baseOffset:     id,
 		currentOffset:  0,
 		maxRecordCount: maxRecordCount,
-		index:          idx,
+		offsetIndex:    idx,
+		timestampIndex: tidx,
 		fd:             fd,
 	}
 	return s, nil
@@ -107,7 +125,11 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64, write bool) (
 	if !fileExists(filename) {
 		return nil, ErrSegmentDoesNotExist
 	}
-	idx, err := openIndex(datadir, id, maxRecordCount)
+	idx, err := openIndex(datadir, "offsets", id, maxRecordCount)
+	if err != nil {
+		return nil, err
+	}
+	tidx, err := openIndex(datadir, "timestamps", id, maxRecordCount)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +155,8 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64, write bool) (
 		currentOffset:   offset,
 		currentPosition: uint64(position),
 		maxRecordCount:  maxRecordCount,
-		index:           idx,
+		offsetIndex:     idx,
+		timestampIndex:  tidx,
 		fd:              fd,
 	}
 	return s, nil
@@ -164,7 +187,7 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 
 func (e *segment) ReadEntryAt(buf []byte, logOffset int64) (Entry, error) {
 	offset := uint64(logOffset) - e.baseOffset
-	position, err := e.index.readPosition(offset)
+	position, err := e.offsetIndex.readPosition(offset)
 	if err != nil {
 		return nil, err
 	}
@@ -178,6 +201,38 @@ func (e *segment) ReaderFrom(offset uint64) io.ReadSeeker {
 		segment:   e,
 	}
 }
+func (e *segment) seekTimestamp(ts uint64) uint64 {
+	idx := sort.Search(int(e.CurrentOffset()), func(i int) bool {
+		n, err := e.timestampIndex.readPosition(uint64(i))
+		if err != nil {
+			return false
+		}
+		return uint64(n) >= ts
+	})
+	return uint64(idx)
+}
+func (e *segment) ReaderFromTimestamp(ts uint64) io.ReadSeeker {
+	offset := e.seekTimestamp(ts)
+	return &segmentReader{
+		headerBuf: make([]byte, entryHeaderSize),
+		offset:    offset,
+		segment:   e,
+	}
+}
+func (e *segment) Earliest() uint64 {
+	n, err := e.timestampIndex.readPosition(e.BaseOffset())
+	if err != nil {
+		return 0
+	}
+	return n
+}
+func (e *segment) Latest() uint64 {
+	n, err := e.timestampIndex.readPosition(e.CurrentOffset())
+	if err != nil {
+		return 0
+	}
+	return n
+}
 
 func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.mtx.Lock()
@@ -190,7 +245,12 @@ func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	err = e.index.writePosition(e.currentOffset, e.currentPosition)
+	err = e.offsetIndex.writePosition(e.currentOffset, e.currentPosition)
+	if err != nil {
+		// Index update failed: retturn an error and do not update write cursor
+		return 0, err
+	}
+	err = e.timestampIndex.writePosition(e.currentOffset, ts)
 	if err != nil {
 		// Index update failed: retturn an error and do not update write cursor
 		return 0, err

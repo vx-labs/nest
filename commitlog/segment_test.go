@@ -60,7 +60,7 @@ func TestSegment(t *testing.T) {
 	})
 	t.Run("should allow reading multiple entries payload", func(t *testing.T) {
 		value := []byte("test")
-		m, err := s.WriteEntry(0, value)
+		m, err := s.WriteEntry(10, value)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), m)
 
@@ -105,6 +105,15 @@ func TestSegment(t *testing.T) {
 			r.Seek(-1, io.SeekEnd)
 			require.Equal(t, uint64(1), r.offset)
 		})
+	})
+	t.Run("should allow seeking timestamp", func(t *testing.T) {
+		require.Equal(t, uint64(0), s.(*segment).seekTimestamp(0))
+	})
+	t.Run("should allow seeking timestamp", func(t *testing.T) {
+		require.Equal(t, uint64(1), s.(*segment).seekTimestamp(10))
+	})
+	t.Run("should allow seeking timestamp", func(t *testing.T) {
+		require.Equal(t, uint64(2), s.(*segment).seekTimestamp(100))
 	})
 }
 

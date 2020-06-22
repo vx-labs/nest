@@ -44,12 +44,12 @@ type index struct {
 	data gommap.MMap
 }
 
-func indexName(datadir string, id uint64) string {
-	return path.Join(datadir, fmt.Sprintf("%d.index", id))
+func indexName(datadir, suffix string, id uint64) string {
+	return path.Join(datadir, fmt.Sprintf("%d.%s.index", id, suffix))
 }
 
-func createIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
-	filename := indexName(datadir, id)
+func createIndex(datadir, suffix string, id uint64, segmentSize uint64) (Index, error) {
+	filename := indexName(datadir, suffix, id)
 	if fileExists(filename) {
 		return nil, ErrIndexAlreadyExists
 	}
@@ -66,8 +66,8 @@ func createIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
 	idx := &index{fd: fd, path: filename}
 	return idx, idx.mmap()
 }
-func openIndex(datadir string, id uint64, segmentSize uint64) (Index, error) {
-	filename := indexName(datadir, id)
+func openIndex(datadir, suffix string, id uint64, segmentSize uint64) (Index, error) {
+	filename := indexName(datadir, suffix, id)
 	if !fileExists(filename) {
 		return nil, ErrIndexDoesNotExist
 	}
