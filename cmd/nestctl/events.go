@@ -58,13 +58,8 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 	get := (&cobra.Command{
 		Use: "get",
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			defer cancel()
 			conn, l := mustDial(ctx, cmd, config)
-			patterns := make([][]byte, len(args))
-			for idx := range patterns {
-				patterns[idx] = []byte(args[idx])
-			}
+
 			stream, err := api.NewEventsClient(conn).GetEvents(ctx, &api.GetEventRequest{
 				FromOffset: config.GetInt64("from-offset"),
 				Watch:      config.GetBool("watch"),
