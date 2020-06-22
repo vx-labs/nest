@@ -1,7 +1,6 @@
 package commitlog
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"testing"
@@ -52,7 +51,7 @@ func TestCommitLog(t *testing.T) {
 	})
 	t.Run("should allow seeking position in reader", func(t *testing.T) {
 		cReader := clog.Reader()
-		r := cReader.(*commitlogReader)
+		r := cReader.(*cursor)
 		t.Run("start", func(t *testing.T) {
 			r.Seek(1, io.SeekStart)
 			require.Equal(t, uint64(1), r.currentOffset)
@@ -83,12 +82,6 @@ func TestCommitLog(t *testing.T) {
 	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {
 		require.Equal(t, uint64(0), clog.(*commitLog).lookupTimestamp(5))
 		require.Equal(t, uint64(0x14), clog.(*commitLog).lookupTimestamp(26))
-	})
-	t.Run("should allow being written in an io.Writer", func(t *testing.T) {
-		buf := bytes.NewBuffer(nil)
-		n, err := clog.WriteTo(buf)
-		require.NoError(t, err)
-		require.Equal(t, int64(1600), n)
 	})
 }
 

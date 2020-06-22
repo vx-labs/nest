@@ -29,6 +29,7 @@ type Segment interface {
 	ReaderFromTimestamp(timestamp uint64) io.ReadSeeker
 	Delete() error
 	io.Closer
+	io.Seeker
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
 	Earliest() uint64
 	Latest() uint64
@@ -92,10 +93,21 @@ func (i *segment) Size() uint64 {
 func (i *segment) Name() string {
 	return i.fd.Name()
 }
+func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+	if offset-int64(i.baseOffset) >= int64(i.currentOffset) {
+		return 0, io.EOF
+	}
+	fileOffset, err := i.offsetIndex.readPosition(uint64(offset) - i.baseOffset)
+	if err != nil {
+		return 0, err
+	}
+	return i.fd.Seek(int64(fileOffset), io.SeekStart)
+}
 func (i *segment) WriteTo(w io.Writer) (n int64, err error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
-	i.fd.Seek(0, io.SeekStart)
 	return io.Copy(w, i.fd)
 }
 
