@@ -24,11 +24,20 @@ func (s *eventServer) PutEvent(ctx context.Context, in *api.PutEventRequest) (*a
 	})
 }
 func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEventsServer) error {
-	consumer := stream.NewConsumer(
-		stream.FromOffset(in.FromOffset),
-		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-		stream.WithMaxBatchSize(250),
-	)
+	var consumer stream.Consumer
+	if in.Watch {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(in.FromOffset),
+			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+			stream.WithMaxBatchSize(250),
+		)
+	} else {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(in.FromOffset),
+			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+			stream.WithMaxBatchSize(250),
+		)
+	}
 	return s.state.Consume(client.Context(), consumer,
 		func(_ context.Context, _ uint64, batch []*api.Event) error {
 			return client.Send(&api.GetEventResponse{Events: batch})

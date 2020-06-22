@@ -67,6 +67,7 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 			stream, err := api.NewEventsClient(conn).GetEvents(ctx, &api.GetEventRequest{
 				FromOffset: config.GetInt64("from-offset"),
+				Watch:      config.GetBool("watch"),
 			})
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
@@ -92,6 +93,7 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 	})
 	get.Flags().String("format", eventTemplate, "Format each event using Golang template format.")
 	get.Flags().Int64P("from-offset", "f", 0, "Fetch events written after the given timestamp.")
+	get.Flags().BoolP("watch", "w", false, "Watch for new events")
 	cmd.AddCommand(get)
 
 	return cmd

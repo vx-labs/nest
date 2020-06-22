@@ -26,11 +26,20 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 	return &api.PutRecordsResponse{}, s.state.PutRecords(ctx, in.Records)
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRecordsServer) error {
-	consumer := stream.NewConsumer(
-		stream.FromOffset(in.FromOffset),
-		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-		stream.WithMaxBatchSize(250),
-	)
+	var consumer stream.Consumer
+	if in.Watch {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(in.FromOffset),
+			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+			stream.WithMaxBatchSize(250),
+		)
+	} else {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(in.FromOffset),
+			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+			stream.WithMaxBatchSize(250),
+		)
+	}
 	return s.state.Consume(client.Context(), consumer,
 		RecordMatcher(in.Patterns,
 			func(_ context.Context, _ uint64, batch []*api.Record) error {
@@ -46,21 +55,6 @@ func (s *server) Serve(grpcServer *grpc.Server) {
 func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*api.ListTopicsResponse, error) {
 	out := s.state.ListTopics(in.Pattern)
 	return &api.ListTopicsResponse{TopicMetadatas: out}, nil
-}
-
-func (s *server) StreamRecords(in *api.GetRecordsRequest, client api.Messages_StreamRecordsServer) error {
-	consumer := stream.NewConsumer(
-		stream.FromOffset(in.FromOffset),
-		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-		stream.WithMaxBatchSize(250),
-	)
-	return s.state.Consume(client.Context(), consumer,
-		RecordMatcher(in.Patterns,
-			func(_ context.Context, _ uint64, batch []*api.Record) error {
-				return client.Send(&api.GetRecordsResponse{Records: batch})
-			},
-		),
-	)
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {
