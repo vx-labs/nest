@@ -206,11 +206,13 @@ func main() {
 			}
 
 			waspReceiver := nest.NewWaspReceiver(messageLog)
+			waspEventsReceiver := nest.NewWaspAuditRecorder(eventsLog)
 			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)
 			eventsServer := nest.NewEventsServer(eventsLog)
 			eventsServer.Serve(server)
 			waspReceiver.Serve(server)
+			waspEventsReceiver.Serve(server)
 			async.Run(ctx, &wg, func(ctx context.Context) {
 				defer nest.L(ctx).Info("cluster listener stopped")
 

@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const eventTemplate = `[{{ .Timestamp | parseDate | yellow | faint }}] {{ .Kind | faint}} {{ .Attributes }}`
+const eventTemplate = `[{{ .Timestamp | parseDate | yellow | faint }}] {{ .Kind | faint}} {{ range $attr := .Attributes }} {{ $attr.Key }}={{ $attr.Value }} {{ end }}`
 
 func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
