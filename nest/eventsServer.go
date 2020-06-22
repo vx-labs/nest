@@ -25,9 +25,16 @@ func (s *eventServer) PutEvent(ctx context.Context, in *api.PutEventRequest) (*a
 }
 func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEventsServer) error {
 	var consumer stream.Consumer
+	offset := uint64(in.FromOffset)
+	if in.FromTimestamp > 0 {
+		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		if timestampOffset > offset {
+			offset = timestampOffset
+		}
+	}
 	if in.Watch {
 		consumer = stream.NewConsumer(
-			stream.FromOffset(in.FromOffset),
+			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 			stream.WithMaxBatchSize(250),
 		)

@@ -1,13 +1,12 @@
 syntax = "proto3";
 package fsm;
 
-message PeerLost {
-  uint64 Peer = 1;
-}
+message PeerLost { uint64 Peer = 1; }
 message StateTransitionSet { repeated StateTransition events = 1; }
 
 message RecordsPut {
   repeated bytes Records = 1;
+  repeated uint64 Timestamps = 2;
 }
 
 message StateTransition {

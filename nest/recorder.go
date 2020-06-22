@@ -25,9 +25,10 @@ type Recorder interface {
 	SetCurrentStateOffset(v uint64)
 	CurrentStateOffset() uint64
 	Snapshot() ([]byte, error)
+	ResolveTimestamp(ts uint64) uint64
 	Consume(f func(r io.ReadSeeker) error) error
 	Dump(w io.Writer, fromOffset, lastOffset uint64) error
-	Append(stateOffset uint64, payloads [][]byte) error
+	Append(stateOffset uint64, timestamps []uint64, payloads [][]byte) error
 	Offset() uint64
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 }
@@ -105,6 +106,9 @@ func (s *recorder) Close() error {
 	return s.log.Close()
 }
 
+func (s *recorder) ResolveTimestamp(ts uint64) uint64 {
+	return s.log.ResolveTimestamp(ts)
+}
 func (s *recorder) SetCurrentStateOffset(v uint64) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -133,11 +137,11 @@ func (s *recorder) Snapshot() ([]byte, error) {
 	})
 }
 
-func (s *recorder) Append(stateOffset uint64, payloads [][]byte) error {
+func (s *recorder) Append(stateOffset uint64, timestamps []uint64, payloads [][]byte) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
-	for _, payload := range payloads {
-		_, err := s.log.WriteEntry(0, payload)
+	for idx := range payloads {
+		_, err := s.log.WriteEntry(timestamps[idx], payloads[idx])
 		if err != nil {
 			return err
 		}

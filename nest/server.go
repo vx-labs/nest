@@ -27,15 +27,23 @@ func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*ap
 }
 func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRecordsServer) error {
 	var consumer stream.Consumer
+	offset := uint64(in.FromOffset)
+	if in.FromTimestamp > 0 {
+		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		if timestampOffset > offset {
+			offset = timestampOffset
+		}
+	}
+
 	if in.Watch {
 		consumer = stream.NewConsumer(
-			stream.FromOffset(in.FromOffset),
+			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 			stream.WithMaxBatchSize(250),
 		)
 	} else {
 		consumer = stream.NewConsumer(
-			stream.FromOffset(in.FromOffset),
+			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
 			stream.WithMaxBatchSize(250),
 		)

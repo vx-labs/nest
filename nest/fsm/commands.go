@@ -11,7 +11,7 @@ import (
 )
 
 type State interface {
-	Append(uint64, [][]byte) error
+	Append(uint64, []uint64, [][]byte) error
 	SetCurrentStateOffset(v uint64)
 }
 
@@ -68,14 +68,17 @@ func (f *FSM) Shutdown(ctx context.Context) error {
 	return f.commit(ctx, payload)
 }
 func (f *FSM) PutRecords(ctx context.Context, records [][]byte) error {
-	for _, record := range records {
+	stamps := make([]uint64, len(records))
+	for idx, record := range records {
+		stamps[idx] = uint64(time.Now().UnixNano())
 		if len(record) > 20*1000*1000 {
 			return errors.New("payload size exceeded")
 		}
 	}
 	payload, err := encode(&StateTransition{Event: &StateTransition_RecordsPut{
 		RecordsPut: &RecordsPut{
-			Records: records,
+			Records:    records,
+			Timestamps: stamps,
 		},
 	}})
 	if err != nil {
@@ -92,7 +95,7 @@ func (f *FSM) Apply(index uint64, b []byte) error {
 	for _, event := range events {
 		switch event := event.GetEvent().(type) {
 		case *StateTransition_RecordsPut:
-			err = f.state.Append(index, event.RecordsPut.Records)
+			err = f.state.Append(index, event.RecordsPut.Timestamps, event.RecordsPut.Records)
 		default:
 			f.state.SetCurrentStateOffset(index)
 		}

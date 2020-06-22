@@ -23,6 +23,7 @@ type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type MessageLog interface {
+	ResolveTimestamp(ts uint64) uint64
 	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error
@@ -52,6 +53,9 @@ func NewMessageLog(ctx context.Context, shard Shard) (MessageLog, error) {
 	return s, nil
 }
 
+func (s *messageLog) ResolveTimestamp(ts uint64) uint64 {
+	return s.shard.ResolveTimestamp(ts)
+}
 func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
 	return s.shard.Dump(sink, fromOffset, lastOffset)
 }

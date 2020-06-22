@@ -14,8 +14,9 @@ message PutRecordsRequest { repeated Record Records = 1; }
 message PutRecordsResponse {}
 message GetRecordsRequest {
   int64 FromOffset = 1;
-  repeated bytes Patterns = 2;
-  bool Watch = 3;
+  int64 FromTimestamp = 2;
+  repeated bytes Patterns = 3;
+  bool Watch = 4;
 }
 message GetRecordsResponse { repeated Record Records = 1; }
 message LoadResponse {
@@ -98,7 +99,8 @@ message PutEventResponse {}
 message GetEventRequest {
   string Tenant = 1;
   int64 FromOffset = 2;
-  bool Watch = 3;
+  int64 FromTimestamp = 3;
+  bool Watch = 4;
 }
 message GetEventResponse { repeated Event Events = 1; }
 
