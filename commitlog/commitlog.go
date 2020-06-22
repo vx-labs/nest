@@ -25,7 +25,7 @@ type commitLog struct {
 type CommitLog interface {
 	io.Closer
 	io.Writer
-	Append(value []byte) (uint64, error)
+	WriteEntry(value []byte) (uint64, error)
 	Delete() error
 	Reader() ReadSeekCloser
 	ReaderFrom(offset uint64) (ReadSeekCloser, error)
@@ -178,18 +178,13 @@ func (e *commitLog) ReaderFrom(offset uint64) (ReadSeekCloser, error) {
 	}, nil
 }
 func (e *commitLog) Write(value []byte) (int, error) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
-		err := e.appendSegment(uint64(len(e.segments)) * e.segmentMaxRecordCount)
-		if err != nil {
-			return 0, errors.Wrap(err, "failed to extend log")
-		}
+	_, err := e.WriteEntry(value)
+	if err != nil {
+		return 0, err
 	}
-	return e.activeSegment.Write(value)
+	return len(value), err
 }
-
-func (e *commitLog) Append(value []byte) (uint64, error) {
+func (e *commitLog) WriteEntry(value []byte) (uint64, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
@@ -198,8 +193,7 @@ func (e *commitLog) Append(value []byte) (uint64, error) {
 			return 0, errors.Wrap(err, "failed to extend log")
 		}
 	}
-	_, err := e.activeSegment.Write(value)
-	return e.activeSegment.CurrentOffset(), err
+	return e.activeSegment.WriteEntry(value)
 }
 
 type commitlogReader struct {
