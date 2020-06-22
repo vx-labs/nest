@@ -16,8 +16,7 @@ func TestCommitLog(t *testing.T) {
 	defer clog.Delete()
 	value := []byte("test")
 	t.Run("should allow reading from empty log", func(t *testing.T) {
-		r, err := clog.ReaderFrom(0)
-		require.NoError(t, err)
+		r := clog.Reader()
 		buf := make([]byte, len(value))
 		n, err := r.Read(buf)
 		require.Equal(t, io.EOF, err)
@@ -43,8 +42,7 @@ func TestCommitLog(t *testing.T) {
 		require.Equal(t, uint64(10), l.lookupOffset(10))
 	})
 	t.Run("should allow reading from log", func(t *testing.T) {
-		r, err := clog.ReaderFrom(0)
-		require.NoError(t, err)
+		r := clog.Reader()
 		buf := make([]byte, len(value))
 		for i := 0; i < 50; i++ {
 			n, err := r.Read(buf)
@@ -53,8 +51,7 @@ func TestCommitLog(t *testing.T) {
 		}
 	})
 	t.Run("should allow seeking position in reader", func(t *testing.T) {
-		cReader, err := clog.ReaderFrom(0)
-		require.NoError(t, err)
+		cReader := clog.Reader()
 		r := cReader.(*commitlogReader)
 		t.Run("start", func(t *testing.T) {
 			r.Seek(1, io.SeekStart)
@@ -86,16 +83,6 @@ func TestCommitLog(t *testing.T) {
 	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {
 		require.Equal(t, uint64(0), clog.(*commitLog).lookupTimestamp(5))
 		require.Equal(t, uint64(0x14), clog.(*commitLog).lookupTimestamp(26))
-		r, err := clog.ReaderFromTimestamp(20)
-		require.NoError(t, err)
-		buf := make([]byte, len(value))
-		for i := 0; i < 30; i++ {
-			n, err := r.Read(buf)
-			require.NoError(t, err, fmt.Sprintf("index: %d", i))
-			require.Equal(t, len(value), n)
-		}
-		_, err = r.Read(buf)
-		require.Equal(t, io.EOF, err)
 	})
 	t.Run("should allow being written in an io.Writer", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
