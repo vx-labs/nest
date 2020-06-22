@@ -28,6 +28,7 @@ type CommitLog interface {
 	Delete() error
 	Reader() ReadSeekCloser
 	ReaderFrom(offset uint64) (ReadSeekCloser, error)
+	ReaderFromTimestamp(ts uint64) (ReadSeekCloser, error)
 	Offset() uint64
 	Datadir() string
 }
@@ -132,13 +133,27 @@ func (e *commitLog) appendSegment(offset uint64) error {
 	return nil
 }
 
-// lookupOffset eturns the baseOffset (and thus, the segment id) of the segment containing the provided offset
+// lookupOffset returns the baseOffset (and thus, the segment id) of the segment containing the provided offset
 func (e *commitLog) lookupOffset(offset uint64) uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
 		return e.segments[i] > offset
+	})
+	return e.segments[idx-1]
+}
+func (e *commitLog) lookupTimestamp(ts uint64) uint64 {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	count := len(e.segments)
+	idx := sort.Search(count, func(i int) bool {
+		seg, err := e.readSegment(e.segments[i])
+		if err != nil {
+			return true
+		}
+		defer seg.Close()
+		return seg.Earliest() >= ts
 	})
 	return e.segments[idx-1]
 }
@@ -162,9 +177,25 @@ func (e *commitLog) Reader() ReadSeekCloser {
 		currentReader:  nil,
 	}
 }
+func (e *commitLog) ReaderFromTimestamp(ts uint64) (ReadSeekCloser, error) {
+	idx := e.lookupTimestamp(ts)
+	segment, err := e.readSegment(idx)
+	if err != nil {
+		return nil, err
+	}
+	r := segment.ReaderFromTimestamp(ts)
+	n, _ := r.Seek(0, io.SeekCurrent)
+	return &commitlogReader{
+		currentOffset:  uint64(n) + segment.BaseOffset(),
+		log:            e,
+		currentSegment: segment,
+		segmentSize:    e.segmentMaxRecordCount,
+		currentReader:  r,
+	}, nil
+}
 func (e *commitLog) ReaderFrom(offset uint64) (ReadSeekCloser, error) {
 	idx := e.lookupOffset(offset)
-	segment, err := e.readSegment(uint64(idx))
+	segment, err := e.readSegment(idx)
 	if err != nil {
 		return nil, err
 	}

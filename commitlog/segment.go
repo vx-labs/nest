@@ -30,6 +30,8 @@ type Segment interface {
 	Delete() error
 	io.Closer
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
+	Earliest() uint64
+	Latest() uint64
 }
 
 type segment struct {
@@ -220,7 +222,7 @@ func (e *segment) ReaderFromTimestamp(ts uint64) io.ReadSeeker {
 	}
 }
 func (e *segment) Earliest() uint64 {
-	n, err := e.timestampIndex.readPosition(e.BaseOffset())
+	n, err := e.timestampIndex.readPosition(0)
 	if err != nil {
 		return 0
 	}

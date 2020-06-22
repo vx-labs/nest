@@ -8,7 +8,7 @@ import (
 )
 
 func TestSegment(t *testing.T) {
-	datadir := "/tmp"
+	datadir := "/tmp/"
 	s, err := createSegment(datadir, 0, 200)
 	require.NoError(t, err)
 	defer s.Delete()

@@ -9,7 +9,7 @@ import (
 )
 
 func TestCommitLog(t *testing.T) {
-	datadir := "/tmp"
+	datadir := "/tmp/"
 	clog, err := create(datadir, 10)
 	require.NoError(t, err)
 	defer clog.Delete()
@@ -24,7 +24,7 @@ func TestCommitLog(t *testing.T) {
 	})
 
 	for i := 0; i < 50; i++ {
-		n, err := clog.WriteEntry(0, value)
+		n, err := clog.WriteEntry(uint64(i), value)
 		require.NoError(t, err)
 		require.Equal(t, uint64(i), n)
 	}
@@ -82,7 +82,21 @@ func TestCommitLog(t *testing.T) {
 			require.Equal(t, uint64(49), r.currentOffset)
 		})
 	})
+	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {
+		require.Equal(t, uint64(0), clog.(*commitLog).lookupTimestamp(5))
+		require.Equal(t, uint64(0x14), clog.(*commitLog).lookupTimestamp(26))
+		r, err := clog.ReaderFromTimestamp(20)
+		require.NoError(t, err)
+		buf := make([]byte, len(value))
+		for i := 0; i < 30; i++ {
+			n, err := r.Read(buf)
+			require.NoError(t, err, fmt.Sprintf("index: %d", i))
+			require.Equal(t, len(value), n)
+		}
+		_, err = r.Read(buf)
+		require.Equal(t, io.EOF, err)
 
+	})
 }
 
 func BenchmarkLog(b *testing.B) {
