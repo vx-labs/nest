@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const recordTemplate = `[{{ .Timestamp | parseDate  | yellow | faint }}] {{ .Topic | bytesToString | faint}}: {{ .Payload | bytesToString  }}`
+const recordTemplate = `[{{ .Timestamp | parseDate  | yellow | faint }}] {{ .Sender }} {{ .Topic | bytesToString | faint}}: {{ .Payload | bytesToString  }}`
 
 func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
