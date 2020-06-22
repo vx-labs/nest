@@ -18,9 +18,9 @@ func TestSegment(t *testing.T) {
 	})
 	t.Run("should write provided value", func(t *testing.T) {
 		value := []byte("test")
-		n, err := s.Write(value)
+		n, err := s.WriteEntry(2, value)
 		require.NoError(t, err)
-		require.Equal(t, len(value), n)
+		require.Equal(t, uint64(0), n)
 		entry, err := s.ReadEntryAt(make([]byte, entryHeaderSize), 0)
 		require.NoError(t, err)
 		require.Equal(t, value, entry.Payload())
@@ -60,14 +60,14 @@ func TestSegment(t *testing.T) {
 	})
 	t.Run("should allow reading multiple entries payload", func(t *testing.T) {
 		value := []byte("test")
-		n, err := s.Write(value)
+		m, err := s.WriteEntry(0, value)
 		require.NoError(t, err)
-		require.Equal(t, len(value), n)
+		require.Equal(t, uint64(1), m)
 
 		r := s.ReaderFrom(0)
 		buf := make([]byte, 4)
 
-		n, err = r.Read(buf)
+		n, err := r.Read(buf)
 		require.NoError(t, err)
 		require.Equal(t, 4, n)
 		require.Equal(t, value, buf)
@@ -116,7 +116,7 @@ func BenchmarkSegment(b *testing.B) {
 	value := []byte("test")
 	b.Run("write", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err = s.Write(value)
+			_, err = s.WriteEntry(0, value)
 			if err != nil {
 				b.Fatalf("segment write failed: %v", err)
 			}

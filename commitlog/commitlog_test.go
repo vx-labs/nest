@@ -24,9 +24,9 @@ func TestCommitLog(t *testing.T) {
 	})
 
 	for i := 0; i < 50; i++ {
-		n, err := clog.Write(value)
+		n, err := clog.WriteEntry(0, value)
 		require.NoError(t, err)
-		require.Equal(t, len(value), n)
+		require.Equal(t, uint64(i), n)
 	}
 	l := clog.(*commitLog)
 	require.Equal(t, 5, len(l.segments))
@@ -93,7 +93,7 @@ func BenchmarkLog(b *testing.B) {
 	value := []byte("test")
 	b.Run("write", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err = s.Write(value)
+			_, err = s.WriteEntry(0, value)
 			if err != nil {
 				b.Fatalf("segment write failed: %v", err)
 			}

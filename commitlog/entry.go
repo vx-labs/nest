@@ -13,12 +13,13 @@ var (
 
 const (
 	checksumSize    int = 4
-	entryHeaderSize int = 8 + 8 + checksumSize
+	entryHeaderSize int = 8 + 8 + 8 + checksumSize
 )
 
 type Entry interface {
 	Size() uint64
 	Offset() uint64
+	Timestamp() uint64
 	Checksum() []byte
 	Payload() []byte
 	IsValid() bool
@@ -27,6 +28,7 @@ type Entry interface {
 type entry struct {
 	payloadSize uint64
 	offset      uint64
+	timestamp   uint64
 	checksum    []byte
 	payload     []byte
 }
@@ -37,16 +39,18 @@ func hash(b []byte) []byte {
 	return crc.Sum(nil)
 }
 
-func (e entry) Size() uint64     { return e.payloadSize }
-func (e entry) Offset() uint64   { return e.offset }
-func (e entry) Payload() []byte  { return e.payload }
-func (e entry) Checksum() []byte { return e.checksum }
-func (e entry) IsValid() bool    { return bytes.Equal(hash(e.payload), e.checksum) }
+func (e entry) Size() uint64      { return e.payloadSize }
+func (e entry) Offset() uint64    { return e.offset }
+func (e entry) Timestamp() uint64 { return e.timestamp }
+func (e entry) Payload() []byte   { return e.payload }
+func (e entry) Checksum() []byte  { return e.checksum }
+func (e entry) IsValid() bool     { return bytes.Equal(hash(e.payload), e.checksum) }
 
-func newEntry(offset uint64, payload []byte) Entry {
+func newEntry(ts uint64, offset uint64, payload []byte) Entry {
 	return entry{
 		payloadSize: uint64(len(payload)),
 		offset:      offset,
+		timestamp:   ts,
 		checksum:    hash(payload),
 		payload:     payload,
 	}
@@ -73,15 +77,17 @@ func decodeEntry(buf []byte) (Entry, error) {
 	return &entry{
 		payloadSize: encoding.Uint64(buf[0:8]),
 		offset:      encoding.Uint64(buf[8:16]),
-		checksum:    buf[16 : 16+checksumSize],
-		payload:     buf[16+checksumSize:],
+		timestamp:   encoding.Uint64(buf[16:24]),
+		checksum:    buf[24 : 24+checksumSize],
+		payload:     buf[24+checksumSize:],
 	}, nil
 }
 func writeEntry(e Entry, w io.Writer) (int, error) {
 	buf := make([]byte, entryHeaderSize)
 	encoding.PutUint64(buf[0:8], e.Size())
 	encoding.PutUint64(buf[8:16], e.Offset())
-	copy(buf[16:20], e.Checksum())
+	encoding.PutUint64(buf[16:24], e.Timestamp())
+	copy(buf[24:28], e.Checksum())
 	total, err := w.Write(buf)
 	if err != nil {
 		return total, err

@@ -27,8 +27,7 @@ type Segment interface {
 	ReaderFrom(offset uint64) io.ReadSeeker
 	Delete() error
 	io.Closer
-	io.Writer
-	WriteEntry([]byte) (uint64, error)
+	WriteEntry(ts uint64, buf []byte) (uint64, error)
 }
 
 type segment struct {
@@ -179,20 +178,14 @@ func (e *segment) ReaderFrom(offset uint64) io.ReadSeeker {
 		segment:   e,
 	}
 }
-func (e *segment) Write(value []byte) (int, error) {
-	_, err := e.WriteEntry(value)
-	if err != nil {
-		return 0, err
-	}
-	return len(value), err
-}
-func (e *segment) WriteEntry(value []byte) (uint64, error) {
+
+func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if e.currentOffset >= e.maxRecordCount {
 		return 0, ErrSegmentFull
 	}
-	entry := newEntry(e.currentOffset, value)
+	entry := newEntry(ts, e.currentOffset, value)
 	n, err := writeEntry(entry, &writerAt{pos: e.currentPosition, w: e.fd})
 	if err != nil {
 		return 0, err

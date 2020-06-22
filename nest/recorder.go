@@ -137,7 +137,7 @@ func (s *recorder) Append(stateOffset uint64, payloads [][]byte) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	for _, payload := range payloads {
-		_, err := s.log.WriteEntry(payload)
+		_, err := s.log.WriteEntry(0, payload)
 		if err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func (s *recorder) load(source io.Reader) error {
 			return nil
 		}
 		if record.Offset >= firstOffset {
-			_, err = s.log.Write(record.Payload)
+			_, err = s.log.WriteEntry(0, record.Payload)
 			if err != nil {
 				return err
 			}
