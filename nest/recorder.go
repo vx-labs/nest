@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/tysontate/gommap"
 	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/stream"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -27,10 +27,11 @@ type Recorder interface {
 	Snapshot() ([]byte, error)
 	ResolveTimestamp(ts uint64) uint64
 	Consume(f func(r io.ReadSeeker) error) error
-	Dump(w io.Writer, fromOffset, lastOffset uint64) error
+	Dump(w io.Writer, fromOffset uint64) error
 	Append(stateOffset uint64, timestamps []uint64, payloads [][]byte) error
 	Offset() uint64
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
+	Load(source io.Reader) error
 }
 
 type DumpRecord struct {
@@ -107,7 +108,8 @@ func (s *recorder) Close() error {
 }
 
 func (s *recorder) ResolveTimestamp(ts uint64) uint64 {
-	return s.log.ResolveTimestamp(ts)
+	//return s.log.ResolveTimestamp(ts)
+	return 0 // TODO
 }
 func (s *recorder) SetCurrentStateOffset(v uint64) {
 	s.mtx.Lock()
@@ -155,20 +157,33 @@ func (s *recorder) Consume(f func(r io.ReadSeeker) error) error {
 	defer r.Close()
 	return f(r)
 }
-func (s *recorder) load(source io.Reader) error {
-	firstOffset := s.log.Offset()
-	dec := json.NewDecoder(source)
-	record := &DumpRecord{}
+func (s *recorder) Load(source io.Reader) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	_, err := s.load(source, 0)
+	return err
+}
+func (s *recorder) load(file io.Reader, lastOffset uint64) (int, error) {
+	decoder := commitlog.NewDecoder(file)
+	count := 0
 	for {
-		err := dec.Decode(&record)
-		if err == io.EOF {
-			return nil
-		}
-		if record.Offset >= firstOffset {
-			_, err = s.log.WriteEntry(0, record.Payload)
-			if err != nil {
-				return err
+		entry, err := decoder.Decode()
+		if err != nil {
+			if err == io.EOF {
+				return count, nil
 			}
+			return count, err
+		}
+		if lastOffset > 0 && lastOffset <= entry.Offset() {
+			log.Printf("%d >= %d", entry.Offset(), lastOffset)
+			return count, nil
+		}
+		if s.log.Offset() <= entry.Offset() {
+			_, err := s.log.WriteEntry(entry.Timestamp(), entry.Payload())
+			if err != nil {
+				return count, err
+			}
+			count++
 		}
 	}
 }
@@ -178,62 +193,28 @@ func (s *recorder) Offset() uint64 {
 }
 func (s *recorder) restoreFromFile(ctx context.Context, snapshotDescription Snapshot, file io.ReadSeeker) error {
 	L(ctx).Debug("restoring snapshot")
-
-	if s.id == snapshotDescription.Remote {
-		L(ctx).Info("refusing to load snapshot from ourselves", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.log.Offset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
-		return nil
-	}
 	L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.log.Offset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
 
 	file.Seek(0, io.SeekStart)
-	err := s.load(file)
+	count, err := s.load(file, snapshotDescription.MessagesOffset)
 	if err != nil {
 		return err
 	}
 	s.setCurrentStateOffset(snapshotDescription.StateOffset)
 
-	L(ctx).Info("loaded snapshot", zap.Uint64("current_log_offset", s.log.Offset()))
+	L(ctx).Info("loaded snapshot", zap.Int("loaded_entries", count), zap.Uint64("current_log_offset", s.log.Offset()))
 	return nil
 }
 
-func (s *recorder) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	encoder := json.NewEncoder(sink)
-	return s.Consume(func(r io.ReadSeeker) error {
-		if lastOffset == 0 {
-			lastOffset = s.log.Offset()
-		}
-
-		limit, err := r.Seek(int64(lastOffset), io.SeekStart)
-		if err != nil {
-			return err
-		}
-		consumer := stream.NewConsumer(
-			stream.FromOffset(int64(fromOffset)),
-			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-			stream.WithMaxBatchSize(10),
-		)
-		err = consumer.Consume(ctx, r,
-			func(ctx context.Context, batch stream.Batch) error {
-				fromOffset = batch.FirstOffset
-				for idx, payload := range batch.Records {
-					offset := fromOffset + uint64(idx)
-					if offset >= uint64(limit) {
-						return io.EOF
-					}
-					err = encoder.Encode(DumpRecord{Offset: offset, Payload: payload})
-					if err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-		if err == io.EOF {
-			return nil
-		}
+func (s *recorder) Dump(sink io.Writer, fromOffset uint64) error {
+	r := s.log.Reader()
+	defer r.Close()
+	_, err := r.Seek(int64(fromOffset), io.SeekStart)
+	if err != nil {
 		return err
-	})
+	}
+	_, err = r.WriteTo(sink)
+	return err
 }
 
 func (s *recorder) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
@@ -247,6 +228,10 @@ func (s *recorder) Restore(ctx context.Context, snapshot []byte, caller RemoteCa
 	if err != nil {
 		L(ctx).Debug("failed to decode state snapshot", zap.Error(err))
 	} else {
+		if s.id == snapshotDescription.Remote {
+			L(ctx).Info("refusing to load snapshot from ourselves", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.log.Offset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
+			return nil
+		}
 		file, err := ioutil.TempFile("", "sst-incoming.*.nest")
 		if err != nil {
 			L(ctx).Fatal("failed to create tmp file to receive snapshot", zap.Error(err))

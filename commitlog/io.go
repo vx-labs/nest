@@ -22,17 +22,6 @@ func (r *readerAt) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-type writerAt struct {
-	pos uint64
-	w   io.WriterAt
-}
-
-func (r *writerAt) Write(buf []byte) (int, error) {
-	n, err := r.w.WriteAt(buf, int64(r.pos))
-	r.pos += uint64(n)
-	return n, err
-}
-
 type offsetReader struct {
 	mtx     sync.Mutex
 	offsets []uint64

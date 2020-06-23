@@ -124,9 +124,37 @@ func (s *streamsServer) Dump(in *api.DumpRequest, stream api.Streams_DumpServer)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to open DestinationURL: %v", err)
 	}
-	return shard.Dump(w, 0, 0)
+	return shard.Dump(w, 0)
 }
 
+func (s *streamsServer) Load(in *api.LoadRequest, stream api.Streams_LoadServer) error {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	shards, ok := s.states[in.Stream]
+	if !ok {
+		return status.Error(codes.NotFound, "stream not found")
+	}
+	if int(in.Shard) >= len(shards) {
+		return status.Error(codes.NotFound, "shard not found")
+	}
+	shard := shards[int(in.Shard)]
+	var urlReader URLReader
+	sourceURL, err := url.Parse(in.SourceURL)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "unable to parse SourceURL: %v", err)
+	}
+	switch sourceURL.Scheme {
+	case "file":
+		urlReader = FileURLReader()
+	default:
+		return status.Errorf(codes.InvalidArgument, "unknown SourceURL scheme: %s", sourceURL.Scheme)
+	}
+	r, err := urlReader(stream.Context(), sourceURL)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to open SourceURL: %v", err)
+	}
+	return shard.Load(r)
+}
 func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) error {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -145,7 +173,7 @@ func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) er
 	}
 	defer os.Remove(file.Name())
 	defer file.Close()
-	err = shard.Dump(file, in.FromOffset, in.ToOffset)
+	err = shard.Dump(file, in.FromOffset)
 	if err != nil {
 		return err
 	}

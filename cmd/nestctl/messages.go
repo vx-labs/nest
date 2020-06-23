@@ -97,6 +97,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			conn, l := mustDial(ctx, cmd, config)
 			stream, err := api.NewStreamsClient(conn).Dump(ctx, &api.DumpRequest{
+				Stream:         "messages",
+				Shard:          0,
 				DestinationURL: config.GetString("destination-url"),
 			})
 			if err != nil {
@@ -118,34 +120,36 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	backupCommand.Flags().StringP("destination-url", "t", "", "Backup destination URL (file URLs are resolved server-side.)")
 	backupCommand.MarkFlagRequired("destination-url")
 	cmd.AddCommand(backupCommand)
-	// restoreCommand := &cobra.Command{
-	// 	Use:  "restore",
-	// 	Args: cobra.ExactArgs(0),
-	// 	Run: func(cmd *cobra.Command, args []string) {
-	// 		conn, l := mustDial(ctx, cmd, config)
-	// 		stream, err := api.NewMessagesClient(conn).Load(ctx, &api.LoadRequest{
-	// 			SourceURL: config.GetString("source-url"),
-	// 		})
-	// 		if err != nil {
-	// 			l.Fatal("failed to start restore", zap.Error(err))
-	// 		}
-	// 		for {
-	// 			msg, err := stream.Recv()
-	// 			if err == io.EOF {
-	// 				break
-	// 			}
-	// 			if err != nil {
-	// 				l.Fatal("failed to run restore", zap.Error(err))
-	// 			}
-	// 			log.Printf("Restore in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
-	// 		}
-	// 		log.Printf("Restore done")
-	// 	},
-	// }
-	// restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
-	// restoreCommand.MarkFlagRequired("source-url")
-	// cmd.AddCommand(restoreCommand)
-	cmd.AddCommand(&cobra.Command{
+	restoreCommand := &cobra.Command{
+		Use:  "restore",
+		Args: cobra.ExactArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			stream, err := api.NewStreamsClient(conn).Load(ctx, &api.LoadRequest{
+				Stream:    "messages",
+				Shard:     0,
+				SourceURL: config.GetString("source-url"),
+			})
+			if err != nil {
+				l.Fatal("failed to start restore", zap.Error(err))
+			}
+			for {
+				msg, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					l.Fatal("failed to run restore", zap.Error(err))
+				}
+				log.Printf("Restore in progress: %d/%d\n", msg.ProgressBytes, msg.TotalBytes)
+			}
+			log.Printf("Restore done")
+		},
+	}
+	restoreCommand.Flags().StringP("source-url", "f", "", "Backup source URL (file URLs are resolved server-side.)")
+	restoreCommand.MarkFlagRequired("source-url")
+	cmd.AddCommand(restoreCommand)
+	bench := &cobra.Command{
 		Use: "bench",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
@@ -167,8 +171,10 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			total := 100 * 1000 * 1000
 			bar := pb.StartNew(total)
 			go func() {
+				defer close(done)
+				ticker := time.NewTicker(config.GetDuration("interval"))
+				defer ticker.Stop()
 				for {
-					defer close(done)
 					if bar.Current() == int64(total) {
 						return
 					}
@@ -182,6 +188,11 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 						l.Fatal("failed to put record", zap.Error(err))
 					}
 					bar.Increment()
+					select {
+					case <-ticker.C:
+					case <-ctx.Done():
+						return
+					}
 				}
 			}()
 			<-done
@@ -191,6 +202,8 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			fmt.Printf("Benchmark done: %d msg in %s\n", count, elapsed.String())
 			fmt.Printf("Rate is %d msg/s\n", rate)
 		},
-	})
+	}
+	bench.Flags().DurationP("interval", "i", 1*time.Millisecond, "interval between two API call")
+	cmd.AddCommand(bench)
 	return cmd
 }

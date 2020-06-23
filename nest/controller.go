@@ -19,7 +19,8 @@ type Shard interface {
 	ResolveTimestamp(ts uint64) uint64
 	Shutdown(ctx context.Context) error
 	Consume(f func(r io.ReadSeeker) error) error
-	Dump(w io.Writer, fromOffset, lastOffset uint64) error
+	Dump(w io.Writer, fromOffset uint64) error
+	Load(r io.Reader) error
 	Offset() uint64
 	Ready() <-chan struct{}
 	Stop() error
@@ -58,8 +59,11 @@ func (s *shard) PutRecords(ctx context.Context, records [][]byte) error {
 func (s *shard) Consume(f func(r io.ReadSeeker) error) error {
 	return s.recorder.Consume(f)
 }
-func (s *shard) Dump(w io.Writer, fromOffset, lastOffset uint64) error {
-	return s.recorder.Dump(w, fromOffset, lastOffset)
+func (s *shard) Dump(w io.Writer, fromOffset uint64) error {
+	return s.recorder.Dump(w, fromOffset)
+}
+func (s *shard) Load(r io.Reader) error {
+	return s.recorder.Load(r)
 }
 func (s *shard) Offset() uint64 {
 	return s.recorder.Offset()

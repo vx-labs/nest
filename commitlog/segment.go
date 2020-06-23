@@ -24,16 +24,14 @@ type Segment interface {
 	BaseOffset() uint64
 	CurrentOffset() uint64
 	Size() uint64
-	ReadEntryAt(buf []byte, logOffset int64) (Entry, error)
-	ReaderFrom(offset uint64) io.ReadSeeker
-	ReaderFromTimestamp(timestamp uint64) io.ReadSeeker
 	Delete() error
-	io.Closer
-	io.Seeker
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
 	Earliest() uint64
 	Latest() uint64
 	io.WriterTo
+	io.Reader
+	io.Closer
+	io.Seeker
 }
 
 type segment struct {
@@ -206,22 +204,6 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 	return offset, nil
 }
 
-func (e *segment) ReadEntryAt(buf []byte, logOffset int64) (Entry, error) {
-	offset := uint64(logOffset) - e.baseOffset
-	position, err := e.offsetIndex.readPosition(offset)
-	if err != nil {
-		return nil, err
-	}
-	return readEntry(&readerAt{pos: position, r: e.fd}, buf)
-}
-
-func (e *segment) ReaderFrom(offset uint64) io.ReadSeeker {
-	return &segmentReader{
-		headerBuf: make([]byte, entryHeaderSize),
-		offset:    offset,
-		segment:   e,
-	}
-}
 func (e *segment) seekTimestamp(ts uint64) uint64 {
 	idx := sort.Search(int(e.CurrentOffset()), func(i int) bool {
 		n, err := e.timestampIndex.readPosition(uint64(i))
@@ -231,14 +213,6 @@ func (e *segment) seekTimestamp(ts uint64) uint64 {
 		return uint64(n) >= ts
 	})
 	return uint64(idx)
-}
-func (e *segment) ReaderFromTimestamp(ts uint64) io.ReadSeeker {
-	offset := e.seekTimestamp(ts)
-	return &segmentReader{
-		headerBuf: make([]byte, entryHeaderSize),
-		offset:    offset,
-		segment:   e,
-	}
 }
 func (e *segment) Earliest() uint64 {
 	n, err := e.timestampIndex.readPosition(0)
@@ -254,6 +228,11 @@ func (e *segment) Latest() uint64 {
 	}
 	return n
 }
+func (e *segment) Read(p []byte) (int, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.fd.Read(p)
+}
 
 func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.mtx.Lock()
@@ -261,8 +240,8 @@ func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	if e.currentOffset >= e.maxRecordCount {
 		return 0, ErrSegmentFull
 	}
-	entry := newEntry(ts, e.currentOffset, value)
-	n, err := writeEntry(entry, &writerAt{pos: e.currentPosition, w: e.fd})
+	entry := newEntry(ts, e.baseOffset+e.currentOffset, value)
+	n, err := writeEntry(entry, e.fd)
 	if err != nil {
 		return 0, err
 	}
@@ -280,62 +259,4 @@ func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.currentOffset++
 	e.currentPosition += uint64(n)
 	return writtenOffset, nil
-}
-
-type segmentReader struct {
-	mtx          sync.Mutex
-	currentEntry Entry
-	headerBuf    []byte
-	offset       uint64
-	entryPos     int
-	segment      Segment
-}
-
-func (s *segmentReader) Seek(offset int64, whence int) (int64, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	var newOffset int64
-	switch whence {
-	case io.SeekStart:
-		newOffset = int64(s.segment.BaseOffset()) + offset
-	case io.SeekCurrent:
-		newOffset = int64(s.offset) + offset
-	case io.SeekEnd:
-		newOffset = int64(s.segment.CurrentOffset()) + offset
-	}
-	if newOffset > int64(s.segment.CurrentOffset()) {
-		s.offset = s.segment.CurrentOffset()
-	} else if newOffset < int64(s.segment.BaseOffset()) {
-		s.offset = s.segment.BaseOffset()
-	} else {
-		s.offset = uint64(newOffset)
-	}
-	s.entryPos = 0
-	s.currentEntry = nil
-
-	return int64(s.offset), nil
-}
-func (s *segmentReader) Read(p []byte) (int, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-	var err error
-	if s.currentEntry != nil && len(s.currentEntry.Payload()) == s.entryPos {
-		s.offset++
-		s.entryPos = 0
-		s.currentEntry = nil
-	}
-	if s.currentEntry == nil {
-		s.currentEntry, err = s.segment.ReadEntryAt(s.headerBuf, int64(s.offset))
-		if err != nil {
-			return 0, err
-		}
-
-		if !s.currentEntry.IsValid() {
-			return 0, ErrCorruptedEntry
-		}
-	}
-
-	n := copy(p, s.currentEntry.Payload()[s.entryPos:])
-	s.entryPos += n
-	return n, nil
 }

@@ -8,7 +8,9 @@ import (
 )
 
 var (
-	ErrInvalidBufferSize = errors.New("invalid buffer size")
+	ErrInvalidBufferSize        = errors.New("invalid buffer size")
+	ErrEntryTooBig              = errors.New("entry is too big")
+	MaxEntrySize         uint64 = 20000000
 )
 
 const (
@@ -64,6 +66,10 @@ func readEntry(r io.Reader, buf []byte) (Entry, error) {
 		return nil, err
 	}
 	payloadSize := encoding.Uint64(buf[0:8])
+	if payloadSize > MaxEntrySize {
+		panic(ErrEntryTooBig)
+		return nil, ErrEntryTooBig
+	}
 	bodyBuf := make([]byte, payloadSize+uint64(entryHeaderSize))
 	copy(bodyBuf[0:entryHeaderSize], buf)
 	_, err = io.ReadFull(r, bodyBuf[entryHeaderSize:])
@@ -74,28 +80,24 @@ func readEntry(r io.Reader, buf []byte) (Entry, error) {
 }
 
 func decodeEntry(buf []byte) (Entry, error) {
-	return &entry{
+	e := &entry{
 		payloadSize: encoding.Uint64(buf[0:8]),
 		offset:      encoding.Uint64(buf[8:16]),
 		timestamp:   encoding.Uint64(buf[16:24]),
 		checksum:    buf[24 : 24+checksumSize],
 		payload:     buf[24+checksumSize:],
-	}, nil
+	}
+	return e, nil
 }
 func writeEntry(e Entry, w io.Writer) (int, error) {
-	buf := make([]byte, entryHeaderSize)
+	if e.Size() > MaxEntrySize {
+		return 0, ErrEntryTooBig
+	}
+	buf := make([]byte, entryHeaderSize+int(e.Size()))
 	encoding.PutUint64(buf[0:8], e.Size())
 	encoding.PutUint64(buf[8:16], e.Offset())
 	encoding.PutUint64(buf[16:24], e.Timestamp())
 	copy(buf[24:28], e.Checksum())
-	total, err := w.Write(buf)
-	if err != nil {
-		return total, err
-	}
-	n, err := w.Write(e.Payload())
-	total += n
-	if err != nil {
-		return total, err
-	}
-	return total, nil
+	copy(buf[28:], e.Payload())
+	return w.Write(buf)
 }

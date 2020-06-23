@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
+	"log"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/commitlog"
@@ -46,18 +47,23 @@ func NewMessageLog(ctx context.Context, shard Shard) (MessageLog, error) {
 		shard:  shard,
 		topics: &topicAggregate{topics: NewTopicState()},
 	}
-	go s.shard.Consume(func(r io.ReadSeeker) error {
-		consumer := stream.NewConsumer()
-		return consumer.Consume(ctx, r, RecordDecoder(s.topics.Processor()))
-	})
+	go func() {
+		err := s.shard.Consume(func(r io.ReadSeeker) error {
+			consumer := stream.NewConsumer()
+			return consumer.Consume(ctx, r, RecordDecoder(s.topics.Processor()))
+		})
+		if err != nil {
+			log.Print(err)
+		}
+	}()
 	return s, nil
 }
 
 func (s *messageLog) ResolveTimestamp(ts uint64) uint64 {
 	return s.shard.ResolveTimestamp(ts)
 }
-func (s *messageLog) Dump(sink io.Writer, fromOffset, lastOffset uint64) error {
-	return s.shard.Dump(sink, fromOffset, lastOffset)
+func (s *messageLog) Dump(sink io.Writer, fromOffset uint64) error {
+	return s.shard.Dump(sink, fromOffset)
 }
 func (s *messageLog) PutRecords(ctx context.Context, b []*api.Record) error {
 	payloads := make([][]byte, len(b))

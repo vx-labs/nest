@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"time"
+
+	"github.com/vx-labs/nest/commitlog"
 )
 
 type eofBehaviour int
@@ -64,16 +66,14 @@ func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
 func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOpts) {
+	decoder := commitlog.NewDecoder(r)
 	defer close(s.ch)
-	buf := make([]byte, 20*1000*1000)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			newRecord := make([]byte, n)
-			copy(newRecord, buf[:n])
-			s.current.Records = append(s.current.Records, newRecord)
+		entry, err := decoder.Decode()
+		if err == nil {
+			s.current.Records = append(s.current.Records, entry.Payload())
 		}
 		if len(s.current.Records) >= s.maxBatchSize {
 			select {
@@ -85,7 +85,7 @@ func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOpts) {
 			case <-ctx.Done():
 				return
 			}
-		} else if len(s.current.Records) > s.minBatchSize || len(s.current.Records) > 0 && n == 0 {
+		} else if len(s.current.Records) > s.minBatchSize || len(s.current.Records) > 0 {
 			select {
 			case s.ch <- s.current:
 				s.current = Batch{

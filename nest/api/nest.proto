@@ -40,7 +40,6 @@ message GetTopicsRequest { bytes Pattern = 1; }
 message GetTopicsResponse { repeated Record Records = 1; }
 
 service Messages {
-  // rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
   rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
@@ -72,6 +71,7 @@ message DumpResponse {
 }
 
 service Streams {
+  rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}
 }

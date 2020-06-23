@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,6 +30,10 @@ func main() {
 	config.AddConfigPath(configDir())
 	config.SetConfigType("yaml")
 	config.SetConfigName("config")
+	config.SetEnvPrefix("NESTCTL")
+	config.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	config.AutomaticEnv()
+
 	ctx := context.Background()
 	rootCmd := &cobra.Command{
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {

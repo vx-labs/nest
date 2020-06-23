@@ -49,39 +49,18 @@ func TestCommitLog(t *testing.T) {
 			require.Equal(t, len(value), n)
 		}
 	})
-	t.Run("should allow seeking position in reader", func(t *testing.T) {
-		cReader := clog.Reader()
-		r := cReader.(*cursor)
-		t.Run("start", func(t *testing.T) {
-			r.Seek(1, io.SeekStart)
-			require.Equal(t, uint64(1), r.currentOffset)
-			r.Seek(2, io.SeekStart)
-			require.Equal(t, uint64(2), r.currentOffset)
-			r.Seek(30, io.SeekStart)
-			require.Equal(t, uint64(30), r.currentOffset)
-			r.Seek(0, io.SeekStart)
-			require.Equal(t, uint64(0), r.currentOffset)
-		})
-		t.Run("current", func(t *testing.T) {
-			r.Seek(1, io.SeekCurrent)
-			require.Equal(t, uint64(1), r.currentOffset)
-			r.Seek(1, io.SeekCurrent)
-			require.Equal(t, uint64(2), r.currentOffset)
-			r.Seek(15, io.SeekCurrent)
-			require.Equal(t, uint64(17), r.currentOffset)
-			r.Seek(-1, io.SeekCurrent)
-			require.Equal(t, uint64(16), r.currentOffset)
-		})
-		t.Run("end", func(t *testing.T) {
-			r.Seek(1, io.SeekEnd)
-			require.Equal(t, uint64(50), r.currentOffset)
-			r.Seek(-1, io.SeekEnd)
-			require.Equal(t, uint64(49), r.currentOffset)
-		})
-	})
 	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {
 		require.Equal(t, uint64(0), clog.(*commitLog).lookupTimestamp(5))
 		require.Equal(t, uint64(0x14), clog.(*commitLog).lookupTimestamp(26))
+	})
+	t.Run("should decoder to be plugged in", func(t *testing.T) {
+		r := clog.Reader()
+		r.Seek(1, io.SeekStart)
+		defer r.Close()
+		dec := NewDecoder(r)
+		entry, err := dec.Decode()
+		require.NoError(t, err)
+		require.Equal(t, []byte("test"), entry.Payload())
 	})
 }
 

@@ -250,6 +250,14 @@ func main() {
 			} else {
 				nest.L(ctx).Debug("events stream left")
 			}
+			eventsController.Stop()
+			messageController.Stop()
+			err = clusterMultiNode.Shutdown()
+			if err != nil {
+				nest.L(ctx).Error("failed to shutdown cluster", zap.Error(err))
+			} else {
+				nest.L(ctx).Debug("cluster stopped")
+			}
 			healthServer.Shutdown()
 			nest.L(ctx).Debug("health server left")
 			go func() {
@@ -263,14 +271,6 @@ func main() {
 			cancel()
 			wg.Wait()
 			nest.L(ctx).Debug("asynchronous operations stopped")
-			eventsController.Stop()
-			messageController.Stop()
-			err = clusterMultiNode.Shutdown()
-			if err != nil {
-				nest.L(ctx).Error("failed to shutdown cluster", zap.Error(err))
-			} else {
-				nest.L(ctx).Debug("cluster stopped")
-			}
 			nest.L(ctx).Info("nest successfully stopped")
 		},
 	}
