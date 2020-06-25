@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/vx-labs/nest/nest"
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/nest/async"
+	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
 	"github.com/vx-labs/wasp/rpc"
 	"go.uber.org/zap"
@@ -123,9 +122,9 @@ func main() {
 				}()
 				nest.L(ctx).Info("started pprof", zap.String("pprof_url", fmt.Sprintf("http://%s/", address)))
 			}
+			operations := async.NewOperations(ctx, nest.L(ctx))
 			healthServer := health.NewServer()
 			healthServer.Resume()
-			wg := sync.WaitGroup{}
 			cancelCh := make(chan struct{})
 			if config.GetString("rpc-tls-certificate-file") == "" || config.GetString("rpc-tls-private-key-file") == "" {
 				nest.L(ctx).Warn("TLS certificate or private key not provided. GRPC transport security will use a self-signed generated certificate.")
@@ -213,9 +212,7 @@ func main() {
 			eventsServer.Serve(server)
 			waspReceiver.Serve(server)
 			waspEventsReceiver.Serve(server)
-			async.Run(ctx, &wg, func(ctx context.Context) {
-				defer nest.L(ctx).Info("cluster listener stopped")
-
+			operations.Run("cluster listener", func(ctx context.Context) {
 				err := server.Serve(clusterListener)
 				if err != nil {
 					nest.L(ctx).Fatal("cluster listener crashed", zap.Error(err))
@@ -269,7 +266,7 @@ func main() {
 			clusterListener.Close()
 			nest.L(ctx).Debug("rpc listener stopped")
 			cancel()
-			wg.Wait()
+			operations.Wait()
 			nest.L(ctx).Debug("asynchronous operations stopped")
 			nest.L(ctx).Info("nest successfully stopped")
 		},

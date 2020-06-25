@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"io"
 	"path"
-	"sync"
 
-	"github.com/vx-labs/nest/nest/async"
 	"github.com/vx-labs/nest/nest/fsm"
+	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
 	"github.com/vx-labs/wasp/cluster/raft"
 	"go.uber.org/zap"
@@ -27,12 +26,12 @@ type Shard interface {
 }
 
 type shard struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       *sync.WaitGroup
-	node     cluster.Node
-	fsm      *fsm.FSM
-	recorder Recorder
+	ctx        context.Context
+	cancel     context.CancelFunc
+	operations async.Operations
+	node       cluster.Node
+	fsm        *fsm.FSM
+	recorder   Recorder
 }
 
 func (s *shard) Ready() <-chan struct{} {
@@ -47,7 +46,7 @@ func (s *shard) Stop() error {
 		return err
 	}
 	s.cancel()
-	s.wg.Wait()
+	s.operations.Wait()
 	return s.recorder.Close()
 }
 func (s *shard) Shutdown(ctx context.Context) error {
@@ -70,7 +69,6 @@ func (s *shard) Offset() uint64 {
 }
 
 func newShard(id uint64, stream string, shardID uint64, datadir string, clusterMultiNode cluster.MultiNode, raftConfig cluster.RaftConfig, logger *zap.Logger) (*shard, error) {
-	wg := &sync.WaitGroup{}
 	datadir = path.Join(datadir, stream, fmt.Sprintf("%d", shardID))
 	commandsCh := make(chan raft.Command)
 
@@ -86,8 +84,8 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 	snapshotter := <-node.Snapshotter()
 	stateMachine := fsm.NewFSM(id, recorder, commandsCh)
 	ctx = StoreLogger(ctx, logger)
-	async.Run(ctx, wg, func(ctx context.Context) {
-		defer logger.Info("recorder command processor stopped")
+	operations := async.NewOperations(ctx, logger)
+	operations.Run("recorder command processor", func(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -108,8 +106,7 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 			}
 		}
 	})
-	async.Run(ctx, wg, func(ctx context.Context) {
-		defer logger.Info("command publisher stopped")
+	operations.Run("command publisher", func(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -125,17 +122,16 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 			}
 		}
 	})
-	async.Run(ctx, wg, func(ctx context.Context) {
-		defer logger.Debug("cluster node stopped")
+	operations.Run("cluster node", func(ctx context.Context) {
 		node.Run(ctx)
 	})
 	return &shard{
-		ctx:      ctx,
-		cancel:   cancel,
-		fsm:      stateMachine,
-		node:     node,
-		recorder: recorder,
-		wg:       wg,
+		ctx:        ctx,
+		cancel:     cancel,
+		fsm:        stateMachine,
+		node:       node,
+		recorder:   recorder,
+		operations: operations,
 	}, nil
 }
 
