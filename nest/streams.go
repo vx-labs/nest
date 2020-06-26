@@ -155,6 +155,7 @@ func (s *streamsServer) Load(in *api.LoadRequest, stream api.Streams_LoadServer)
 	}
 	return shard.Load(r)
 }
+
 func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) error {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -200,31 +201,6 @@ func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) er
 	}
 }
 
-// func (s *server) Load(in *api.LoadRequest, stream api.Messages_LoadServer) error {
-//	s.mtx.RLock()
-//	defer s.mtx.RUnlock()
-// 	ctx := stream.Context()
-// 	source, err := url.Parse(in.SourceURL)
-// 	if err != nil {
-// 		return status.Errorf(codes.InvalidArgument, "unable to parse SourceURL: %v", err)
-// 	}
-// 	var urlReader URLReader
-// 	switch source.Scheme {
-// 	case "http":
-// 		urlReader = HTTPURLReader()
-// 	case "https":
-// 		urlReader = HTTPURLReader()
-// 	case "file":
-// 		urlReader = FileURLReader()
-// 	default:
-// 		return status.Errorf(codes.InvalidArgument, "unknown SourceURL scheme: %s", source.Scheme)
-// 	}
-// 	r, err := urlReader(ctx, source)
-// 	if err != nil {
-// 		return status.Errorf(codes.InvalidArgument, "failed to open SourceURL: %v", err)
-// 	}
-// 	return s.state.Load(r)
-// }
 func (s *streamsServer) Serve(grpcServer *grpc.Server) {
 	api.RegisterStreamsServer(grpcServer, s)
 }

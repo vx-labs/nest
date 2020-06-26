@@ -21,7 +21,7 @@ func consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts, processor 
 				return err
 			}
 			if !ok {
-				return nil
+				return poller.Error()
 			}
 		}
 	}

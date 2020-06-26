@@ -3,7 +3,6 @@ package stream
 import (
 	"context"
 	"io"
-	"log"
 	"time"
 
 	"github.com/vx-labs/nest/commitlog"
@@ -34,10 +33,12 @@ type poller struct {
 	minBatchSize int
 	current      Batch
 	ch           chan Batch
+	err          error
 }
 
 type Poller interface {
 	Ready() <-chan Batch
+	Error() error
 }
 
 func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
@@ -62,6 +63,9 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 	return s
 }
 
+func (s *poller) Error() error {
+	return s.err
+}
 func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
@@ -110,10 +114,9 @@ func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOpts) {
 					return
 				}
 			} else {
-				log.Print(err)
+				s.err = err
 			}
 			return
 		}
-
 	}
 }

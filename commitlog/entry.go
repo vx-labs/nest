@@ -67,7 +67,6 @@ func readEntry(r io.Reader, buf []byte) (Entry, error) {
 	}
 	payloadSize := encoding.Uint64(buf[0:8])
 	if payloadSize > MaxEntrySize {
-		panic(ErrEntryTooBig)
 		return nil, ErrEntryTooBig
 	}
 	bodyBuf := make([]byte, payloadSize+uint64(entryHeaderSize))

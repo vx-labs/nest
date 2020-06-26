@@ -74,6 +74,7 @@ func main() {
 	hostname, _ := os.Hostname()
 
 	rootCmd.AddCommand(raft)
+	rootCmd.AddCommand(Streams(ctx, config))
 	rootCmd.AddCommand(Messages(ctx, config))
 	rootCmd.AddCommand(Events(ctx, config))
 	rootCmd.AddCommand(Topics(ctx, config))
