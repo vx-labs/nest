@@ -94,7 +94,7 @@ func NewRecorder(id uint64, stream string, shard uint64, datadir string, logger 
 		stateOffset:   mmapedData,
 		stateOffsetFd: fd,
 	}
-	logger.Info("loaded log", zap.Uint64("current_log_offset", s.log.Offset()))
+	logger.Debug("loaded log", zap.Uint64("current_log_offset", s.log.Offset()))
 	return s, nil
 }
 
