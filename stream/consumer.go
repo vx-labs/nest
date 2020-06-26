@@ -9,6 +9,9 @@ type consumer struct {
 	opts ConsumerOpts
 }
 type consumerOpts func(*ConsumerOpts)
+type OffsetIterator interface {
+	Next() (uint64, error)
+}
 
 func FromOffset(o int64) consumerOpts {
 	return func(c *ConsumerOpts) { c.FromOffset = o }
@@ -18,6 +21,9 @@ func WithMaxBatchSize(v int) consumerOpts {
 }
 func WithEOFBehaviour(v eofBehaviour) consumerOpts {
 	return func(c *ConsumerOpts) { c.EOFBehaviour = v }
+}
+func WithOffsetIterator(v OffsetIterator) consumerOpts {
+	return func(c *ConsumerOpts) { c.OffsetProvider = v }
 }
 
 // TODO: WithCheckpoint(SnapshotStorage, interval) consumerOpts ?

@@ -8,7 +8,6 @@ import (
 	"log"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
 	"google.golang.org/grpc"
@@ -27,7 +26,7 @@ type MessageLog interface {
 	ResolveTimestamp(ts uint64) uint64
 	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error
+	TopicsIterator(pattern []byte) stream.OffsetIterator
 	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
 }
 
@@ -163,10 +162,6 @@ func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error)
 	}
 }
 
-func (s *messageLog) GetTopics(ctx context.Context, pattern []byte, processor RecordProcessor) error {
-	return s.shard.Consume(func(logReader io.ReadSeeker) error {
-		consumer := stream.NewConsumer(stream.WithMaxBatchSize(10), stream.WithEOFBehaviour(stream.EOFBehaviourExit))
-		r := commitlog.OffsetReader(s.topics.Get(pattern), logReader)
-		return consumer.Consume(ctx, r, RecordDecoder(processor))
-	})
+func (s *messageLog) TopicsIterator(pattern []byte) stream.OffsetIterator {
+	return s.topics.Iterator(pattern)
 }

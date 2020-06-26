@@ -19,9 +19,10 @@ const (
 
 // ConsumerOpts describes stream session preferences
 type ConsumerOpts struct {
-	MaxBatchSize int
-	FromOffset   int64
-	EOFBehaviour eofBehaviour
+	MaxBatchSize   int
+	FromOffset     int64
+	EOFBehaviour   eofBehaviour
+	OffsetProvider OffsetIterator
 }
 
 type Batch struct {
@@ -69,12 +70,36 @@ func (s *poller) Error() error {
 func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
-func (s *poller) run(ctx context.Context, r io.Reader, opts ConsumerOpts) {
+func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 	decoder := commitlog.NewDecoder(r)
 	defer close(s.ch)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		if opts.OffsetProvider != nil {
+			next, err := opts.OffsetProvider.Next()
+			if err != nil {
+				if err == io.EOF {
+					if opts.EOFBehaviour == EOFBehaviourExit {
+						return
+					}
+					select {
+					case <-ticker.C:
+						continue
+					case <-ctx.Done():
+						return
+					}
+				} else {
+					s.err = err
+				}
+				return
+			}
+			_, err = r.Seek(int64(next), io.SeekStart)
+			if err != nil {
+				s.err = err
+				return
+			}
+		}
 		entry, err := decoder.Decode()
 		if err == nil {
 			s.current.Records = append(s.current.Records, entry.Payload())

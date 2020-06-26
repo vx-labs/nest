@@ -66,7 +66,33 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 }
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {
-	return s.state.GetTopics(client.Context(), in.Pattern, func(ctx context.Context, _ uint64, batch []*api.Record) error {
-		return client.Send(&api.GetTopicsResponse{Records: batch})
-	})
+	var consumer stream.Consumer
+	offset := uint64(in.FromOffset)
+	if in.FromTimestamp > 0 {
+		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		if timestampOffset > offset {
+			offset = timestampOffset
+		}
+	}
+
+	if in.Watch {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(int64(offset)),
+			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+			stream.WithMaxBatchSize(250),
+			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
+		)
+	} else {
+		consumer = stream.NewConsumer(
+			stream.FromOffset(int64(offset)),
+			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+			stream.WithMaxBatchSize(250),
+			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
+		)
+	}
+	return s.state.Consume(client.Context(), consumer,
+		func(_ context.Context, _ uint64, batch []*api.Record) error {
+			return client.Send(&api.GetTopicsResponse{Records: batch})
+		},
+	)
 }

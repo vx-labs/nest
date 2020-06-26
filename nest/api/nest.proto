@@ -36,7 +36,12 @@ message TopicMetadata {
 message ListTopicsRequest { bytes Pattern = 1; }
 message ListTopicsResponse { repeated TopicMetadata TopicMetadatas = 1; }
 
-message GetTopicsRequest { bytes Pattern = 1; }
+message GetTopicsRequest {
+  int64 FromOffset = 1;
+  int64 FromTimestamp = 2;
+  bytes Pattern = 3;
+  bool Watch = 4;
+}
 message GetTopicsResponse { repeated Record Records = 1; }
 
 service Messages {

@@ -3,9 +3,12 @@ package nest
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"sync"
 
 	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
 	"github.com/vx-labs/wasp/topics"
 )
 
@@ -134,4 +137,34 @@ func (s *topicAggregate) Get(pattern []byte) []uint64 {
 		offsets = append(offsets, topic.Messages...)
 	}
 	return offsets
+}
+
+type topicsIterator struct {
+	mtx       sync.Mutex
+	pattern   []byte
+	cache     []uint64
+	idx       int
+	aggregate *topicAggregate
+}
+
+func (t *topicsIterator) Next() (uint64, error) {
+	t.mtx.Lock()
+	defer t.mtx.Unlock()
+	if t.cache == nil {
+		results := t.aggregate.Get(t.pattern)
+		t.cache = results[t.idx:]
+	}
+	if len(t.cache[t.idx:]) == 0 {
+		return 0, io.EOF
+	}
+	value := t.cache[t.idx]
+	t.idx++
+	return value, nil
+}
+
+func (s *topicAggregate) Iterator(pattern []byte) stream.OffsetIterator {
+	return &topicsIterator{
+		aggregate: s,
+		pattern:   pattern,
+	}
 }
