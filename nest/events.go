@@ -64,3 +64,17 @@ func EventDecoder(processor func(context.Context, uint64, []*api.Event) error) s
 		return processor(ctx, batch.FirstOffset, records)
 	}
 }
+
+func EventTenantMatcher(tenant string, f EventProcessor) EventProcessor {
+	return func(ctx context.Context, offset uint64, records []*api.Event) error {
+		for idx, record := range records {
+			if tenant == record.Tenant {
+				err := f(ctx, offset+uint64(idx), []*api.Event{record})
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+}

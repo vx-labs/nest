@@ -6,6 +6,8 @@ import (
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func NewEventsServer(state EventsLog) *eventServer {
@@ -24,6 +26,9 @@ func (s *eventServer) PutEvent(ctx context.Context, in *api.PutEventRequest) (*a
 	})
 }
 func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEventsServer) error {
+	if in.Tenant == "" {
+		return status.Error(codes.InvalidArgument, "missing Tenant in request")
+	}
 	var consumer stream.Consumer
 	offset := uint64(in.FromOffset)
 	if in.FromTimestamp > 0 {
@@ -46,10 +51,11 @@ func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEv
 		)
 	}
 	return s.state.Consume(client.Context(), consumer,
-		func(_ context.Context, _ uint64, batch []*api.Event) error {
-			return client.Send(&api.GetEventResponse{Events: batch})
-		},
-	)
+		EventTenantMatcher(in.Tenant,
+			func(_ context.Context, _ uint64, batch []*api.Event) error {
+				return client.Send(&api.GetEventResponse{Events: batch})
+			},
+		))
 }
 
 func (s *eventServer) Serve(grpcServer *grpc.Server) {
