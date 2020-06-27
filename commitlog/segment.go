@@ -263,12 +263,12 @@ func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	}
 	err = e.offsetIndex.writePosition(e.currentOffset, e.currentPosition)
 	if err != nil {
-		// Index update failed: retturn an error and do not update write cursor
+		// Index update failed: return an error and do not update write cursor
 		return 0, err
 	}
 	err = e.timestampIndex.writePosition(e.currentOffset, ts)
 	if err != nil {
-		// Index update failed: retturn an error and do not update write cursor
+		// Index update failed: return an error and do not update write cursor
 		return 0, err
 	}
 	writtenOffset := e.currentOffset
