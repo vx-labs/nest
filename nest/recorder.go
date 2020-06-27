@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"sync"
@@ -174,7 +173,6 @@ func (s *recorder) load(file io.Reader, lastOffset uint64) (int, error) {
 			return count, err
 		}
 		if lastOffset > 0 && lastOffset <= entry.Offset() {
-			log.Printf("%d >= %d", entry.Offset(), lastOffset)
 			return count, nil
 		}
 		if s.log.Offset() <= entry.Offset() {
