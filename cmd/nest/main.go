@@ -21,6 +21,7 @@ import (
 	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
 	"github.com/vx-labs/wasp/rpc"
+	"github.com/vx-labs/wasp/wasp/stats"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -219,7 +220,7 @@ func main() {
 				}
 			})
 
-			//go stats.ListenAndServe(config.GetInt("metrics-port"))
+			go stats.ListenAndServe(config.GetInt("metrics-port"))
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
 			messageController.WaitReady(ctx)
