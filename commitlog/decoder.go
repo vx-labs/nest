@@ -19,5 +19,5 @@ func (d *decoder) Decode() (Entry, error) {
 }
 
 func NewDecoder(r io.Reader) Decoder {
-	return &decoder{r: r, headerBuf: make([]byte, entryHeaderSize)}
+	return &decoder{r: r, headerBuf: make([]byte, EntryHeaderSize)}
 }

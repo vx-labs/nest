@@ -186,14 +186,14 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 	if err != nil {
 		return 0, ErrSegmentCorrupt
 	}
-	buf := make([]byte, entryHeaderSize)
+	buf := make([]byte, EntryHeaderSize)
 	var offset uint64
 	for offset = 0; offset < size; offset++ {
 		n, err := r.Read(buf)
 		if err == io.EOF {
 			return offset, nil
 		}
-		if n != entryHeaderSize {
+		if n != EntryHeaderSize {
 			return offset, ErrSegmentCorrupt
 		}
 		_, err = r.Seek(int64(encoding.Uint64(buf[0:8])), io.SeekCurrent)

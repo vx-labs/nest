@@ -15,7 +15,7 @@ var (
 
 const (
 	checksumSize    int = 4
-	entryHeaderSize int = 8 + 8 + 8 + checksumSize
+	EntryHeaderSize int = 8 + 8 + 8 + checksumSize
 )
 
 type Entry interface {
@@ -58,7 +58,7 @@ func newEntry(ts uint64, offset uint64, payload []byte) Entry {
 	}
 }
 func readEntry(r io.Reader, buf []byte) (Entry, error) {
-	if len(buf) != entryHeaderSize {
+	if len(buf) != EntryHeaderSize {
 		return nil, ErrInvalidBufferSize
 	}
 	_, err := io.ReadFull(r, buf)
@@ -69,9 +69,9 @@ func readEntry(r io.Reader, buf []byte) (Entry, error) {
 	if payloadSize > MaxEntrySize {
 		return nil, ErrEntryTooBig
 	}
-	bodyBuf := make([]byte, payloadSize+uint64(entryHeaderSize))
-	copy(bodyBuf[0:entryHeaderSize], buf)
-	_, err = io.ReadFull(r, bodyBuf[entryHeaderSize:])
+	bodyBuf := make([]byte, payloadSize+uint64(EntryHeaderSize))
+	copy(bodyBuf[0:EntryHeaderSize], buf)
+	_, err = io.ReadFull(r, bodyBuf[EntryHeaderSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func writeEntry(e Entry, w io.Writer) (int, error) {
 	if e.Size() > MaxEntrySize {
 		return 0, ErrEntryTooBig
 	}
-	buf := make([]byte, entryHeaderSize+int(e.Size()))
+	buf := make([]byte, EntryHeaderSize+int(e.Size()))
 	encoding.PutUint64(buf[0:8], e.Size())
 	encoding.PutUint64(buf[8:16], e.Offset())
 	encoding.PutUint64(buf[16:24], e.Timestamp())

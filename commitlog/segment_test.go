@@ -30,7 +30,7 @@ func TestSegment(t *testing.T) {
 		s, err = openSegment(datadir, 0, 200, true)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), s.CurrentOffset())
-		require.Equal(t, uint64(entryHeaderSize+len(value)), s.Size())
+		require.Equal(t, uint64(EntryHeaderSize+len(value)), s.Size())
 	})
 	t.Run("should allow seeking offset", func(t *testing.T) {
 		s.WriteEntry(2, value)

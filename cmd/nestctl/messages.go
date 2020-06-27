@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -12,8 +13,10 @@ import (
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
+	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 )
@@ -205,5 +208,44 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	}
 	bench.Flags().DurationP("interval", "i", 1*time.Millisecond, "interval between two API call")
 	cmd.AddCommand(bench)
+	decodeCommand := &cobra.Command{
+		Use:  "decode",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			file, err := os.Open(args[0])
+			if err != nil {
+				log.Print(err)
+				return
+			}
+			defer file.Close()
+			decoder := commitlog.NewDecoder(file)
+			record := api.Record{}
+			var lastEntry commitlog.Entry
+			for {
+				entry, err := decoder.Decode()
+				if err != nil || !entry.IsValid() {
+					fmt.Println("")
+					fmt.Printf("parsing failed: %v\n", err)
+					fmt.Println("dumping last valid record and 200 bytes of invalid one.")
+					fmt.Println("---")
+					lastEntryOffset := int64(lastEntry.Size() + 2*uint64(commitlog.EntryHeaderSize))
+					file.Seek(-lastEntryOffset, io.SeekCurrent)
+					io.Copy(hex.Dumper(os.Stdout), io.LimitReader(file, lastEntryOffset))
+					fmt.Printf("\n---\n")
+					io.Copy(hex.Dumper(os.Stdout), io.LimitReader(file, 200))
+					return
+				}
+				err = proto.Unmarshal(entry.Payload(), &record)
+				if err != nil {
+					log.Print(err)
+					return
+				}
+				lastEntry = entry
+				fmt.Printf("offset=%d length=%d effective_length=%d\ntopic=%q payload=%q\n", entry.Offset(), entry.Size(), len(entry.Payload()), string(record.Topic), string(record.Payload))
+				fmt.Println()
+			}
+		},
+	}
+	cmd.AddCommand(decodeCommand)
 	return cmd
 }

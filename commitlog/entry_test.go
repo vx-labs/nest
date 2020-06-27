@@ -13,7 +13,7 @@ func TestEntry(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 		n, err := writeEntry(e, buf)
 		require.NoError(t, err)
-		require.Equal(t, int(e.Size())+entryHeaderSize, n)
+		require.Equal(t, int(e.Size())+EntryHeaderSize, n)
 		require.Equal(t,
 			[]byte{
 				0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x4,
@@ -46,7 +46,7 @@ func TestEntry(t *testing.T) {
 			0xd8, 0x7f, 0x7e, 0xc,
 			0x74, 0x65, 0x73, 0x74,
 		})
-		buf := make([]byte, entryHeaderSize)
+		buf := make([]byte, EntryHeaderSize)
 		e, err := readEntry(r, buf)
 		require.NoError(t, err)
 		require.Equal(t, uint64(4), e.Size())
