@@ -49,11 +49,13 @@ func main() {
 	raft := &cobra.Command{
 		Use: "raft",
 	}
-	raft.AddCommand(&cobra.Command{
+	members := &cobra.Command{
 		Use: "members",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
-			out, err := cluster.NewRaftClient(conn).GetMembers(ctx, &cluster.GetMembersRequest{})
+			out, err := cluster.NewMultiRaftClient(conn).GetMembers(ctx, &cluster.GetMembersRequest{
+				ClusterID: config.GetString("node"),
+			})
 			if err != nil {
 				l.Fatal("failed to list raft members", zap.Error(err))
 			}
@@ -69,7 +71,10 @@ func main() {
 			}
 			table.Render()
 		},
-	})
+	}
+	members.Flags().StringP("node", "n", "", "Cluster node to request")
+	members.MarkFlagRequired("node")
+	raft.AddCommand(members)
 
 	hostname, _ := os.Hostname()
 
