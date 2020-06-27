@@ -3,6 +3,8 @@ package commitlog
 import (
 	"io"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type Cursor interface {
@@ -13,10 +15,10 @@ type Cursor interface {
 }
 
 type cursor struct {
+	currentIdx     int
 	mtx            sync.Mutex
 	currentSegment Segment
 	log            *commitLog
-	currentOffset  uint64
 }
 
 func (c *cursor) Close() error {
@@ -34,73 +36,73 @@ func (c *cursor) Seek(offset int64, whence int) (int64, error) {
 	defer c.mtx.Unlock()
 	return c.seek(offset, whence)
 }
-func (c *cursor) seek(offset int64, whence int) (int64, error) {
-	if c.currentSegment != nil {
-		err := c.currentSegment.Close()
-		if err != nil {
-			return 0, err
-		}
-		c.currentSegment = nil
-	}
-	currentLogOffset := c.log.currentOffset()
-	var newOffset int64
-	switch whence {
-	case io.SeekStart:
-		newOffset = 0 + offset
-	case io.SeekCurrent:
-		newOffset = int64(c.currentOffset) + offset
-	case io.SeekEnd:
-		newOffset = int64(currentLogOffset) + offset
-	}
-	if newOffset > int64(currentLogOffset) {
-		c.currentOffset = uint64(currentLogOffset)
-	} else if newOffset < 0 {
-		c.currentOffset = 0
-	} else {
-		c.currentOffset = uint64(newOffset)
-	}
-	idx := c.log.lookupOffset(c.currentOffset)
-	segment, err := c.log.readSegment(uint64(idx))
-	if err != nil {
-		return int64(c.currentOffset), err
-	}
-	_, err = segment.Seek(int64(c.currentOffset), io.SeekStart)
-	if err != nil {
-		return 0, err
-	}
-	c.currentSegment = segment
-
-	return int64(c.currentOffset), nil
-}
-
-func (c *cursor) Read(p []byte) (int, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	total := 0
-	for {
-		if c.currentSegment == nil {
-			_, err := c.seek(int64(c.currentOffset), io.SeekStart)
+func (c *cursor) seekFromStart(offset int64) (int64, error) {
+	idx := c.log.lookupOffset(uint64(offset))
+	if idx != c.currentIdx || c.currentSegment == nil {
+		if c.currentSegment != nil {
+			err := c.currentSegment.Close()
 			if err != nil {
 				return 0, err
 			}
+			c.currentSegment = nil
 		}
+		segment, err := c.log.readSegment(c.log.segments[idx])
+		if err != nil {
+			return 0, err
+		}
+		c.currentIdx = idx
+		c.currentSegment = segment
+	}
+	return c.currentSegment.Seek(offset, io.SeekStart)
+}
 
+func (c *cursor) seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		return c.seekFromStart(offset)
+	case io.SeekCurrent:
+		return 0, errors.New("SeekCurrent unsupported when reading the log")
+	default:
+		return 0, errors.New("invalid whence")
+	}
+}
+
+func (c *cursor) doesSegmentExists(idx int) bool {
+	return idx < len(c.log.segments)
+}
+func (c *cursor) openCurrentSegment() error {
+	if c.doesSegmentExists(c.currentIdx) {
+		segment, err := c.log.readSegment(c.log.segments[c.currentIdx])
+		if err != nil {
+			return err
+		}
+		c.currentSegment = segment
+		return nil
+	}
+	return io.EOF
+}
+func (c *cursor) Read(p []byte) (int, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	var total int
+
+	for {
+		if c.currentSegment == nil {
+			if err := c.openCurrentSegment(); err != nil {
+				return total, err
+			}
+		}
 		n, err := c.currentSegment.Read(p[total:])
 		total += n
 		if err == io.EOF {
-			if c.log.segments[len(c.log.segments)-1] == c.currentSegment.BaseOffset() {
-				if total > 0 {
-					return total, nil
+			if c.doesSegmentExists(c.currentIdx + 1) {
+				if err := c.currentSegment.Close(); err != nil {
+					return total, err
 				}
-				return total, io.EOF
+				c.currentIdx++
+				c.currentSegment = nil
+				continue
 			}
-			c.currentOffset = c.log.segmentMaxRecordCount + c.currentSegment.BaseOffset()
-			err := c.currentSegment.Close()
-			if err != nil {
-				return total, err
-			}
-			c.currentSegment = nil
-			return total, nil
 		}
 		return total, err
 	}
@@ -109,28 +111,26 @@ func (c *cursor) Read(p []byte) (int, error) {
 func (c *cursor) WriteTo(w io.Writer) (int64, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-
 	var total int64
+
 	for {
 		if c.currentSegment == nil {
-			_, err := c.seek(int64(c.currentOffset), io.SeekStart)
-			if err != nil {
-				return 0, err
+			if err := c.openCurrentSegment(); err != nil {
+				return total, err
 			}
 		}
 		n, err := c.currentSegment.WriteTo(w)
 		total += n
-		if err != nil {
-			return total, err
+		if err == nil {
+			if c.doesSegmentExists(c.currentIdx + 1) {
+				if err := c.currentSegment.Close(); err != nil {
+					return total, err
+				}
+				c.currentIdx++
+				c.currentSegment = nil
+				continue
+			}
 		}
-		if c.log.segments[len(c.log.segments)-1] == c.currentSegment.BaseOffset() {
-			return total, nil
-		}
-		c.currentOffset = c.log.segmentMaxRecordCount + c.currentSegment.BaseOffset()
-		err = c.currentSegment.Close()
-		if err != nil {
-			return total, err
-		}
-		c.currentSegment = nil
+		return total, err
 	}
 }

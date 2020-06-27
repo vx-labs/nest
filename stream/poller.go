@@ -45,11 +45,7 @@ type Poller interface {
 func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 	var offset int64
 
-	if opts.FromOffset < 0 {
-		offset, _ = r.Seek(opts.FromOffset, io.SeekEnd)
-	} else {
-		offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
-	}
+	offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
 
 	s := &poller{
 		ch:           make(chan Batch),
@@ -70,6 +66,37 @@ func (s *poller) Error() error {
 func (s *poller) Ready() <-chan Batch {
 	return s.ch
 }
+func (s *poller) waitFlush(ctx context.Context) error {
+	if len(s.current.Records) == 0 {
+		return nil
+	}
+	select {
+	case s.ch <- s.current:
+		s.current = Batch{
+			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+			Records:     [][]byte{},
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	return nil
+}
+func (s *poller) tryFlush(ctx context.Context) error {
+	if len(s.current.Records) == 0 {
+		return nil
+	}
+	select {
+	case s.ch <- s.current:
+		s.current = Batch{
+			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
+			Records:     [][]byte{},
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
 func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 	decoder := commitlog.NewDecoder(r)
 	defer close(s.ch)
@@ -81,6 +108,9 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			if err != nil {
 				if err == io.EOF {
 					if opts.EOFBehaviour == EOFBehaviourExit {
+						if err := s.waitFlush(ctx); err != nil {
+							s.err = err
+						}
 						return
 					}
 					select {
@@ -91,8 +121,8 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 					}
 				} else {
 					s.err = err
+					return
 				}
-				return
 			}
 			_, err = r.Seek(int64(next), io.SeekStart)
 			if err != nil {
@@ -105,31 +135,23 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			s.current.Records = append(s.current.Records, entry.Payload())
 		}
 		if len(s.current.Records) >= s.maxBatchSize {
-			select {
-			case s.ch <- s.current:
-				s.current = Batch{
-					FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-					Records:     [][]byte{},
-				}
-			case <-ctx.Done():
+			if err := s.waitFlush(ctx); err != nil {
+				s.err = err
 				return
 			}
+			continue
 		} else if len(s.current.Records) > s.minBatchSize || len(s.current.Records) > 0 {
-			select {
-			case s.ch <- s.current:
-				s.current = Batch{
-					FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-					Records:     [][]byte{},
-				}
-			case <-ctx.Done():
+			if err := s.tryFlush(ctx); err != nil {
+				s.err = err
 				return
-			default:
-				continue
 			}
 		}
 		if err != nil {
 			if err == io.EOF {
 				if opts.EOFBehaviour == EOFBehaviourExit {
+					if err := s.waitFlush(ctx); err != nil {
+						s.err = err
+					}
 					return
 				}
 				select {

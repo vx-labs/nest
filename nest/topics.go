@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sort"
 	"sync"
 
 	"github.com/vx-labs/nest/nest/api"
@@ -143,22 +144,30 @@ type topicsIterator struct {
 	mtx       sync.Mutex
 	pattern   []byte
 	cache     []uint64
-	idx       int
+	last      uint64
 	aggregate *topicAggregate
 }
 
 func (t *topicsIterator) Next() (uint64, error) {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
-	if t.cache == nil {
+	if len(t.cache) == 0 {
 		results := t.aggregate.Get(t.pattern)
-		t.cache = results[t.idx:]
+		sort.Slice(results, func(i, j int) bool {
+			return results[i] < results[j]
+		})
+		for _, offset := range results {
+			if offset > t.last || t.last == 0 {
+				t.cache = append(t.cache, offset)
+			}
+		}
+		if len(t.cache) == 0 {
+			return 0, io.EOF
+		}
 	}
-	if len(t.cache[t.idx:]) == 0 {
-		return 0, io.EOF
-	}
-	value := t.cache[t.idx]
-	t.idx++
+	value := t.cache[0]
+	t.cache = t.cache[1:]
+	t.last = value
 	return value, nil
 }
 

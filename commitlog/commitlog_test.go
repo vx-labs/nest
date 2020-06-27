@@ -36,17 +36,17 @@ func TestCommitLog(t *testing.T) {
 	})
 	t.Run("should allow looking up for offset", func(t *testing.T) {
 		l := clog.(*commitLog)
-		require.Equal(t, uint64(20), l.lookupOffset(27))
-		require.Equal(t, uint64(0), l.lookupOffset(9))
-		require.Equal(t, uint64(10), l.lookupOffset(10))
+		require.Equal(t, 2, l.lookupOffset(27))
+		require.Equal(t, 0, l.lookupOffset(9))
+		require.Equal(t, 1, l.lookupOffset(10))
 	})
 	t.Run("should allow reading from log", func(t *testing.T) {
 		r := clog.Reader()
-		buf := make([]byte, len(value))
+		buf := make([]byte, len(value)+EntryHeaderSize)
 		for i := 0; i < 50; i++ {
 			n, err := r.Read(buf)
 			require.NoError(t, err, fmt.Sprintf("index: %d", i))
-			require.Equal(t, len(value), n)
+			require.Equal(t, len(value)+EntryHeaderSize, n, buf)
 		}
 	})
 	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {

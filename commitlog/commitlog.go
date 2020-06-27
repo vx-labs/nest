@@ -130,15 +130,15 @@ func (e *commitLog) appendSegment(offset uint64) error {
 	return nil
 }
 
-// lookupOffset returns the baseOffset (and thus, the segment id) of the segment containing the provided offset
-func (e *commitLog) lookupOffset(offset uint64) uint64 {
+// lookupOffset returns the segment index of the segment containing the provided offset
+func (e *commitLog) lookupOffset(offset uint64) int {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
 		return e.segments[i] > offset
 	})
-	return e.segments[idx-1]
+	return idx - 1
 }
 func (e *commitLog) lookupTimestamp(ts uint64) uint64 {
 	e.mtx.Lock()
@@ -162,7 +162,12 @@ func (e *commitLog) currentOffset() uint64 {
 }
 
 func (e *commitLog) readSegment(id uint64) (Segment, error) {
-	return openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
+	s, err := openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
+	if err != nil {
+		return nil, err
+	}
+	_, err = s.Seek(int64(id), io.SeekStart)
+	return s, err
 }
 
 func (e *commitLog) Reader() Cursor {

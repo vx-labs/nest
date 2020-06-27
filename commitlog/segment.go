@@ -101,7 +101,11 @@ func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	return i.fd.Seek(int64(fileOffset), io.SeekStart)
+	_, err = i.fd.Seek(int64(fileOffset), io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+	return offset, nil
 }
 func (i *segment) WriteTo(w io.Writer) (n int64, err error) {
 	i.mtx.Lock()
