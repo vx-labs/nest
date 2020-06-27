@@ -107,10 +107,10 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			next, err := opts.OffsetProvider.Next()
 			if err != nil {
 				if err == io.EOF {
+					if err := s.waitFlush(ctx); err != nil {
+						s.err = err
+					}
 					if opts.EOFBehaviour == EOFBehaviourExit {
-						if err := s.waitFlush(ctx); err != nil {
-							s.err = err
-						}
 						return
 					}
 					select {
@@ -140,7 +140,7 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 				return
 			}
 			continue
-		} else if len(s.current.Records) > s.minBatchSize || len(s.current.Records) > 0 {
+		} else if len(s.current.Records) > s.minBatchSize || entry == nil {
 			if err := s.tryFlush(ctx); err != nil {
 				s.err = err
 				return
@@ -148,10 +148,10 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 		}
 		if err != nil {
 			if err == io.EOF {
+				if err := s.waitFlush(ctx); err != nil {
+					s.err = err
+				}
 				if opts.EOFBehaviour == EOFBehaviourExit {
-					if err := s.waitFlush(ctx); err != nil {
-						s.err = err
-					}
 					return
 				}
 				select {
