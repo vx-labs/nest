@@ -68,8 +68,10 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 			}
 			for _, pattern := range patterns {
 				stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
-					Pattern: pattern,
-					Watch:   config.GetBool("watch"),
+					Pattern:       pattern,
+					FromOffset:    config.GetInt64("from-offset"),
+					FromTimestamp: config.GetInt64("from-timestamp"),
+					Watch:         config.GetBool("watch"),
 				})
 				if err != nil {
 					l.Fatal("failed to start stream", zap.Error(err))
@@ -93,6 +95,8 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	})
 	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
 	get.Flags().BoolP("watch", "w", false, "Watch for new records")
+	get.Flags().Int64P("from-timestamp", "", 0, "Fetch records written after the given timestamp.")
+	get.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
 	cmd.AddCommand(get)
 
 	return cmd

@@ -28,6 +28,7 @@ type Segment interface {
 	WriteEntry(ts uint64, buf []byte) (uint64, error)
 	Earliest() uint64
 	Latest() uint64
+	LookupTimestamp(ts uint64) uint64
 	io.WriterTo
 	io.Reader
 	io.Closer
@@ -94,16 +95,27 @@ func (i *segment) Name() string {
 func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
-	if uint64(offset) < i.baseOffset || uint64(offset)-i.baseOffset >= i.maxRecordCount {
+	if uint64(offset) < i.baseOffset {
+		return 0, io.EOF
+	}
+	relOffset := uint64(offset) - i.baseOffset
+	if relOffset >= i.maxRecordCount {
 		return 0, io.EOF
 	}
 	fileOffset, err := i.offsetIndex.readPosition(uint64(offset) - i.baseOffset)
 	if err != nil {
 		return 0, err
 	}
-	_, err = i.fd.Seek(int64(fileOffset), io.SeekStart)
-	if err != nil {
-		return 0, err
+	if relOffset != 0 && fileOffset == 0 {
+		_, err = i.fd.Seek(0, io.SeekEnd)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		_, err = i.fd.Seek(int64(fileOffset), io.SeekStart)
+		if err != nil {
+			return 0, err
+		}
 	}
 	return offset, nil
 }
@@ -208,7 +220,7 @@ func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
 	return offset, nil
 }
 
-func (e *segment) seekTimestamp(ts uint64) uint64 {
+func (e *segment) LookupTimestamp(ts uint64) uint64 {
 	idx := sort.Search(int(e.CurrentOffset()), func(i int) bool {
 		n, err := e.timestampIndex.readPosition(uint64(i))
 		if err != nil {
@@ -216,7 +228,7 @@ func (e *segment) seekTimestamp(ts uint64) uint64 {
 		}
 		return uint64(n) >= ts
 	})
-	return uint64(idx)
+	return uint64(idx) + e.baseOffset
 }
 func (e *segment) Earliest() uint64 {
 	n, err := e.timestampIndex.readPosition(0)

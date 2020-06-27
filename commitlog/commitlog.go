@@ -28,6 +28,7 @@ type CommitLog interface {
 	Reader() Cursor
 	Offset() uint64
 	Datadir() string
+	LookupTimestamp(ts uint64) uint64
 }
 
 func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
@@ -140,7 +141,7 @@ func (e *commitLog) lookupOffset(offset uint64) int {
 	})
 	return idx - 1
 }
-func (e *commitLog) lookupTimestamp(ts uint64) uint64 {
+func (e *commitLog) LookupTimestamp(ts uint64) uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	count := len(e.segments)
@@ -150,9 +151,17 @@ func (e *commitLog) lookupTimestamp(ts uint64) uint64 {
 			return true
 		}
 		defer seg.Close()
-		return seg.Earliest() >= ts
+		return seg.Earliest() > ts
 	})
-	return e.segments[idx-1]
+	if idx <= 0 {
+		return 0
+	}
+	seg, err := e.readSegment(e.segments[idx-1])
+	if err != nil {
+		return 0
+	}
+	defer seg.Close()
+	return seg.LookupTimestamp(ts)
 }
 
 func (e *commitLog) currentOffset() uint64 {

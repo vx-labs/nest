@@ -13,7 +13,7 @@ type EventProcessor func(context.Context, uint64, []*api.Event) error
 
 type EventsLog interface {
 	PutEvents(ctx context.Context, b []*api.Event) error
-	ResolveTimestamp(ts uint64) uint64
+	LookupTimestamp(ts uint64) uint64
 	Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error
 }
 
@@ -40,8 +40,8 @@ func (s *eventsLog) PutEvents(ctx context.Context, b []*api.Event) error {
 	return s.shard.PutRecords(ctx, payloads)
 }
 
-func (s *eventsLog) ResolveTimestamp(ts uint64) uint64 {
-	return s.shard.ResolveTimestamp(ts)
+func (s *eventsLog) LookupTimestamp(ts uint64) uint64 {
+	return s.shard.LookupTimestamp(ts)
 }
 func (s *eventsLog) Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error {
 	return s.shard.Consume(func(r io.ReadSeeker) error {

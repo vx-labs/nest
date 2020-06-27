@@ -11,6 +11,7 @@ type consumer struct {
 type consumerOpts func(*ConsumerOpts)
 type OffsetIterator interface {
 	Next() (uint64, error)
+	AdvanceTo(uint64)
 }
 
 func FromOffset(o int64) consumerOpts {

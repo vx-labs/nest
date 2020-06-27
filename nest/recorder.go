@@ -25,7 +25,7 @@ type Recorder interface {
 	SetCurrentStateOffset(v uint64)
 	CurrentStateOffset() uint64
 	Snapshot() ([]byte, error)
-	ResolveTimestamp(ts uint64) uint64
+	LookupTimestamp(ts uint64) uint64
 	Consume(f func(r io.ReadSeeker) error) error
 	Dump(w io.Writer, fromOffset uint64) error
 	Append(stateOffset uint64, timestamps []uint64, payloads [][]byte) error
@@ -107,9 +107,8 @@ func (s *recorder) Close() error {
 	return s.log.Close()
 }
 
-func (s *recorder) ResolveTimestamp(ts uint64) uint64 {
-	//return s.log.ResolveTimestamp(ts)
-	return 0 // TODO
+func (s *recorder) LookupTimestamp(ts uint64) uint64 {
+	return s.log.LookupTimestamp(ts)
 }
 func (s *recorder) SetCurrentStateOffset(v uint64) {
 	s.mtx.Lock()

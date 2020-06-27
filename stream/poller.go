@@ -46,7 +46,9 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 	var offset int64
 
 	offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
-
+	if opts.OffsetProvider != nil {
+		opts.OffsetProvider.AdvanceTo(uint64(opts.FromOffset))
+	}
 	s := &poller{
 		ch:           make(chan Batch),
 		maxBatchSize: opts.MaxBatchSize,

@@ -50,8 +50,8 @@ func TestCommitLog(t *testing.T) {
 		}
 	})
 	t.Run("should allow seeking timestamp in reader", func(t *testing.T) {
-		require.Equal(t, uint64(0), clog.(*commitLog).lookupTimestamp(5))
-		require.Equal(t, uint64(0x14), clog.(*commitLog).lookupTimestamp(26))
+		require.Equal(t, uint64(5), clog.(*commitLog).LookupTimestamp(5))
+		require.Equal(t, uint64(26), clog.(*commitLog).LookupTimestamp(26))
 	})
 	t.Run("should decoder to be plugged in", func(t *testing.T) {
 		r := clog.Reader()

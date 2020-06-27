@@ -29,7 +29,7 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 	var consumer stream.Consumer
 	offset := uint64(in.FromOffset)
 	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
 		if timestampOffset > offset {
 			offset = timestampOffset
 		}
@@ -69,7 +69,7 @@ func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopi
 	var consumer stream.Consumer
 	offset := uint64(in.FromOffset)
 	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
 		if timestampOffset > offset {
 			offset = timestampOffset
 		}

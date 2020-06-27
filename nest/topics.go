@@ -148,6 +148,9 @@ type topicsIterator struct {
 	aggregate *topicAggregate
 }
 
+func (t *topicsIterator) AdvanceTo(v uint64) {
+	t.last = v
+}
 func (t *topicsIterator) Next() (uint64, error) {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()

@@ -15,7 +15,7 @@ import (
 
 type Shard interface {
 	PutRecords(ctx context.Context, records [][]byte) error
-	ResolveTimestamp(ts uint64) uint64
+	LookupTimestamp(ts uint64) uint64
 	Shutdown(ctx context.Context) error
 	Consume(f func(r io.ReadSeeker) error) error
 	Dump(w io.Writer, fromOffset uint64) error
@@ -37,8 +37,8 @@ type shard struct {
 func (s *shard) Ready() <-chan struct{} {
 	return s.node.Ready()
 }
-func (s *shard) ResolveTimestamp(ts uint64) uint64 {
-	return s.recorder.ResolveTimestamp(ts)
+func (s *shard) LookupTimestamp(ts uint64) uint64 {
+	return s.recorder.LookupTimestamp(ts)
 }
 func (s *shard) Stop() error {
 	err := s.node.Shutdown()

@@ -44,8 +44,8 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, int64(3), n)
 	})
 	t.Run("should allow seeking timestamp", func(t *testing.T) {
-		require.Equal(t, uint64(0), s.(*segment).seekTimestamp(0))
-		require.Equal(t, uint64(4), s.(*segment).seekTimestamp(10))
+		require.Equal(t, uint64(0), s.(*segment).LookupTimestamp(0))
+		require.Equal(t, uint64(4), s.(*segment).LookupTimestamp(10))
 	})
 }
 

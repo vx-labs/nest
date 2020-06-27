@@ -32,7 +32,7 @@ func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEv
 	var consumer stream.Consumer
 	offset := uint64(in.FromOffset)
 	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.ResolveTimestamp(uint64(in.FromTimestamp))
+		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
 		if timestampOffset > offset {
 			offset = timestampOffset
 		}

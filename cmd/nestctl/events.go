@@ -62,9 +62,10 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 			conn, l := mustDial(ctx, cmd, config)
 
 			stream, err := api.NewEventsClient(conn).GetEvents(ctx, &api.GetEventRequest{
-				FromOffset: config.GetInt64("from-offset"),
-				Watch:      config.GetBool("watch"),
-				Tenant:     config.GetString("tenant"),
+				FromOffset:    config.GetInt64("from-offset"),
+				FromTimestamp: config.GetInt64("from-timestamp"),
+				Watch:         config.GetBool("watch"),
+				Tenant:        config.GetString("tenant"),
 			})
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
@@ -90,7 +91,8 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 	})
 	get.Flags().StringP("tenant", "t", "", "Fetch all events for the given tenant.")
 	get.Flags().String("format", eventTemplate, "Format each event using Golang template format.")
-	get.Flags().Int64P("from-offset", "f", 0, "Fetch events written after the given timestamp.")
+	get.Flags().Int64P("from-timestamp", "", 0, "Fetch events written after the given timestamp.")
+	get.Flags().Int64P("from-offset", "", 0, "Fetch events written after the given offset.")
 	get.Flags().BoolP("watch", "w", false, "Watch for new events")
 	backupCommand := &cobra.Command{
 		Use:  "backup",
