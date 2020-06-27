@@ -94,7 +94,7 @@ func (i *segment) Name() string {
 func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
-	if offset-int64(i.baseOffset) >= int64(i.currentOffset) {
+	if uint64(offset) < i.baseOffset || uint64(offset)-i.baseOffset >= i.maxRecordCount {
 		return 0, io.EOF
 	}
 	fileOffset, err := i.offsetIndex.readPosition(uint64(offset) - i.baseOffset)

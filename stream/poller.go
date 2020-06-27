@@ -78,7 +78,6 @@ func (s *poller) waitFlush(ctx context.Context) error {
 		}
 	case <-ctx.Done():
 		return ctx.Err()
-	default:
 	}
 	return nil
 }
@@ -94,6 +93,7 @@ func (s *poller) tryFlush(ctx context.Context) error {
 		}
 	case <-ctx.Done():
 		return ctx.Err()
+	default:
 	}
 	return nil
 }
