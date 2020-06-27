@@ -21,7 +21,7 @@ job "nest" {
     count = 3
 
     restart {
-      attempts = 10
+      attempts = 3
       interval = "5m"
       delay    = "15s"
       mode     = "delay"
@@ -32,6 +32,7 @@ job "nest" {
     }
 
     task "mqtt-collector" {
+      kill_timeout = "30s"
       driver = "docker"
 
       env {
@@ -162,6 +163,19 @@ EOH
           "gossip",
           "${service_version}",
         ]
+      }
+      service {
+        name = "nest"
+        port = "metrics"
+        tags = ["prometheus", "${service_version}"]
+
+        check {
+          type     = "http"
+          path     = "/metrics"
+          port     = "metrics"
+          interval = "30s"
+          timeout  = "2s"
+        }
       }
     }
   }
