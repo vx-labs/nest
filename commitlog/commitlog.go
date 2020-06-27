@@ -164,12 +164,6 @@ func (e *commitLog) LookupTimestamp(ts uint64) uint64 {
 	return seg.LookupTimestamp(ts)
 }
 
-func (e *commitLog) currentOffset() uint64 {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.activeSegment.CurrentOffset() + e.activeSegment.BaseOffset()
-}
-
 func (e *commitLog) readSegment(id uint64) (Segment, error) {
 	s, err := openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
 	if err != nil {
