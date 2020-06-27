@@ -62,10 +62,15 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			for idx := range patterns {
 				patterns[idx] = []byte(args[idx])
 			}
+			timestamp := config.GetInt64("from-timestamp")
+			since := config.GetDuration("since")
+			if since > 0 {
+				timestamp = time.Now().Add(-since).UnixNano()
+			}
 			stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
 				Patterns:      patterns,
 				FromOffset:    config.GetInt64("from-offset"),
-				FromTimestamp: config.GetInt64("from-timestamp"),
+				FromTimestamp: timestamp,
 				Watch:         config.GetBool("watch"),
 			})
 			if err != nil {
@@ -93,6 +98,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	stream.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
 	stream.Flags().Int64P("from-timestamp", "", 0, "Fetch records written after the given timestamp.")
 	stream.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
+	stream.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
 	stream.Flags().BoolP("watch", "w", false, "Watch for new records")
 	cmd.AddCommand(stream)
 

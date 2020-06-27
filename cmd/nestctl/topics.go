@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -66,11 +67,16 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 			if len(args) == 0 {
 				patterns = append(patterns, []byte("#"))
 			}
+			timestamp := config.GetInt64("from-timestamp")
+			since := config.GetDuration("since")
+			if since > 0 {
+				timestamp = time.Now().Add(-since).UnixNano()
+			}
 			for _, pattern := range patterns {
 				stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
 					Pattern:       pattern,
 					FromOffset:    config.GetInt64("from-offset"),
-					FromTimestamp: config.GetInt64("from-timestamp"),
+					FromTimestamp: timestamp,
 					Watch:         config.GetBool("watch"),
 				})
 				if err != nil {
@@ -97,6 +103,7 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	get.Flags().BoolP("watch", "w", false, "Watch for new records")
 	get.Flags().Int64P("from-timestamp", "", 0, "Fetch records written after the given timestamp.")
 	get.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
+	get.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
 	cmd.AddCommand(get)
 
 	return cmd

@@ -45,7 +45,7 @@ func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEv
 		)
 	} else {
 		consumer = stream.NewConsumer(
-			stream.FromOffset(in.FromOffset),
+			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
 			stream.WithMaxBatchSize(250),
 		)

@@ -60,10 +60,15 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 		Use: "get",
 		Run: func(cmd *cobra.Command, args []string) {
 			conn, l := mustDial(ctx, cmd, config)
+			timestamp := config.GetInt64("from-timestamp")
+			since := config.GetDuration("since")
+			if since > 0 {
+				timestamp = time.Now().Add(-since).UnixNano()
+			}
 
 			stream, err := api.NewEventsClient(conn).GetEvents(ctx, &api.GetEventRequest{
 				FromOffset:    config.GetInt64("from-offset"),
-				FromTimestamp: config.GetInt64("from-timestamp"),
+				FromTimestamp: timestamp,
 				Watch:         config.GetBool("watch"),
 				Tenant:        config.GetString("tenant"),
 			})
@@ -90,9 +95,11 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 		},
 	})
 	get.Flags().StringP("tenant", "t", "", "Fetch all events for the given tenant.")
+	get.MarkFlagRequired("tenant")
 	get.Flags().String("format", eventTemplate, "Format each event using Golang template format.")
 	get.Flags().Int64P("from-timestamp", "", 0, "Fetch events written after the given timestamp.")
 	get.Flags().Int64P("from-offset", "", 0, "Fetch events written after the given offset.")
+	get.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
 	get.Flags().BoolP("watch", "w", false, "Watch for new events")
 	backupCommand := &cobra.Command{
 		Use:  "backup",
