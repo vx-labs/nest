@@ -61,6 +61,7 @@ func (w *WaspAuditRecorder) PutWaspEvents(ctx context.Context, in *audit.PutWasp
 			Timestamp:  in.Events[idx].Timestamp,
 			Tenant:     in.Events[idx].Tenant,
 			Kind:       in.Events[idx].Kind,
+			Service:    "wasp",
 			Attributes: attributes,
 		}
 	}
