@@ -52,7 +52,7 @@ func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client
 	offset := w.events.LookupTimestamp(uint64(in.FromTimestamp))
 	consumer := stream.NewConsumer(
 		stream.FromOffset(int64(offset)),
-		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 		stream.WithMaxBatchSize(250),
 	)
 	return w.events.Consume(client.Context(), consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
