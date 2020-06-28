@@ -32,6 +32,7 @@ job "nest" {
     }
 
     task "mqtt-collector" {
+      shutdown_delay = "5s"
       kill_timeout = "30s"
       driver = "docker"
 
