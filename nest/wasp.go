@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/nest/stream"
 	"github.com/vx-labs/wasp/wasp/audit"
 	"github.com/vx-labs/wasp/wasp/taps"
 	"google.golang.org/grpc"
@@ -47,6 +48,29 @@ func (w *WaspAuditRecorder) Serve(server *grpc.Server) {
 	audit.RegisterWaspAuditRecorderServer(server, w)
 }
 
+func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client audit.WaspAuditRecorder_GetWaspEventsServer) error {
+	offset := w.events.LookupTimestamp(uint64(in.FromTimestamp))
+	consumer := stream.NewConsumer(
+		stream.FromOffset(int64(offset)),
+		stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+		stream.WithMaxBatchSize(250),
+	)
+	return w.events.Consume(client.Context(), consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
+		out := make([]*audit.WaspAuditEvent, len(events))
+		for idx := range events {
+			event := events[idx]
+			attributes := make([]*audit.WaspEventAttribute, len(event.Attributes))
+			for attrIdx := range attributes {
+				attributes[attrIdx] = &audit.WaspEventAttribute{
+					Key:   event.Attributes[attrIdx].Key,
+					Value: event.Attributes[attrIdx].Value,
+				}
+			}
+			out[idx] = &audit.WaspAuditEvent{Timestamp: event.Timestamp, Tenant: event.Tenant, Service: event.Service, Kind: event.Kind, Attributes: attributes}
+		}
+		return client.Send(&audit.GetWaspEventsResponse{Events: out})
+	})
+}
 func (w *WaspAuditRecorder) PutWaspEvents(ctx context.Context, in *audit.PutWaspEventRequest) (*audit.PutWaspWaspEventsResponse, error) {
 	records := make([]*api.Event, len(in.Events))
 	for idx := range records {
