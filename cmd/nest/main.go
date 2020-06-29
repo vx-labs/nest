@@ -207,12 +207,14 @@ func main() {
 
 			waspReceiver := nest.NewWaspReceiver(messageLog)
 			waspEventsReceiver := nest.NewWaspAuditRecorder(eventsLog)
+			vespiaryAuditRecorder := nest.NewVespiaryAuditRecorder(eventsLog)
 			messagesServer := nest.NewServer(messageLog)
 			messagesServer.Serve(server)
 			eventsServer := nest.NewEventsServer(eventsLog)
 			eventsServer.Serve(server)
 			waspReceiver.Serve(server)
 			waspEventsReceiver.Serve(server)
+			vespiaryAuditRecorder.Serve(server)
 			operations.Run("cluster listener", func(ctx context.Context) {
 				err := server.Serve(clusterListener)
 				if err != nil {
