@@ -189,7 +189,6 @@ func (s *recorder) Offset() uint64 {
 	return s.log.Offset()
 }
 func (s *recorder) restoreFromFile(ctx context.Context, snapshotDescription Snapshot, file io.ReadSeeker) error {
-	L(ctx).Debug("restoring snapshot")
 	L(ctx).Info("loading snapshot", zap.Uint64("remote_node", snapshotDescription.Remote), zap.Uint64("current_log_offset", s.log.Offset()), zap.Uint64("snapshot_log_offset", snapshotDescription.MessagesOffset))
 
 	file.Seek(0, io.SeekStart)
@@ -215,8 +214,8 @@ func (s *recorder) Dump(sink io.Writer, fromOffset uint64) error {
 }
 
 func (s *recorder) Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error {
-	s.mtx.RLock()
-	defer s.mtx.RUnlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	L(ctx).Debug("restoring snapshot")
 

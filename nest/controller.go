@@ -94,11 +94,14 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 				if event.Payload == nil {
 					snapshot, err := snapshotter.Load()
 					if err != nil {
-						logger.Error("failed to load", zap.Error(err))
+						logger.Error("failed to load snapshot", zap.Error(err))
+						continue
 					}
+					logger.Debug("starting snapshot restore")
 					err = recorder.Restore(ctx, snapshot.Data, node.Call)
 					if err != nil {
-						logger.Debug("failed to load state snapshot", zap.Error(err))
+						logger.Error("failed to restore snapshot", zap.Error(err))
+						continue
 					}
 				} else {
 					stateMachine.Apply(event.Index, event.Payload)
@@ -150,7 +153,7 @@ func NewController(ctx context.Context, id uint64, stream string, shardCount int
 	outShards := make([]Shard, shardCount)
 	var err error
 	for idx := range outShards {
-		outShards[idx], err = newShard(id, stream, uint64(idx), datadir, clusterMultiNode, raftConfig, logger)
+		outShards[idx], err = newShard(id, stream, uint64(idx), datadir, clusterMultiNode, raftConfig, logger.With(zap.String("recorder_stream_name", stream), zap.Int("shard_id", idx)))
 		if err != nil {
 			return nil, err
 		}

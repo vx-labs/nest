@@ -126,7 +126,6 @@ func main() {
 			operations := async.NewOperations(ctx, nest.L(ctx))
 			healthServer := health.NewServer()
 			healthServer.Resume()
-			cancelCh := make(chan struct{})
 			if config.GetString("rpc-tls-certificate-file") == "" || config.GetString("rpc-tls-private-key-file") == "" {
 				nest.L(ctx).Warn("TLS certificate or private key not provided. GRPC transport security will use a self-signed generated certificate.")
 			}
@@ -226,6 +225,7 @@ func main() {
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
 			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
 			messageController.WaitReady(ctx)
+			eventsController.WaitReady(ctx)
 			nest.L(ctx).Info("nest ready")
 
 			sigc := make(chan os.Signal, 1)
@@ -235,7 +235,6 @@ func main() {
 				syscall.SIGQUIT)
 			select {
 			case <-sigc:
-			case <-cancelCh:
 			}
 			nest.L(ctx).Info("nest shutdown initiated")
 			err = messageController.Shutdown(ctx)
@@ -244,6 +243,7 @@ func main() {
 			} else {
 				nest.L(ctx).Debug("messages stream left")
 			}
+			messageController.Stop()
 			err = eventsController.Shutdown(ctx)
 			if err != nil {
 				nest.L(ctx).Error("failed to leave events stream", zap.Error(err))
@@ -251,7 +251,6 @@ func main() {
 				nest.L(ctx).Debug("events stream left")
 			}
 			eventsController.Stop()
-			messageController.Stop()
 			err = clusterMultiNode.Shutdown()
 			if err != nil {
 				nest.L(ctx).Error("failed to shutdown cluster", zap.Error(err))
