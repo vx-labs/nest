@@ -29,6 +29,7 @@ type CommitLog interface {
 	Offset() uint64
 	Datadir() string
 	LookupTimestamp(ts uint64) uint64
+	GetStatistics() Statistics
 }
 
 func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {

@@ -201,6 +201,29 @@ func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) er
 	}
 }
 
+func (s *streamsServer) ListStreams(ctx context.Context, input *api.ListStreamsRequest) (*api.ListStreamsResponse, error) {
+	out := make([]*api.StreamMetadata, len(s.states))
+	streamIdx := 0
+	for name, shards := range s.states {
+		shardMetadatas := make([]*api.ShardMetadata, len(shards))
+		for idx := range shards {
+			stats := shards[idx].GetStatistics()
+			shardMetadatas[idx] = &api.ShardMetadata{
+				CurrentOffset: stats.CurrentOffset,
+				ID:            uint64(idx),
+				SegmentCount:  stats.SegmentCount,
+				StoredBytes:   stats.StoredBytes,
+			}
+			out[streamIdx] = &api.StreamMetadata{
+				Name:           name,
+				ShardMetadatas: shardMetadatas,
+			}
+		}
+		streamIdx++
+	}
+	return &api.ListStreamsResponse{StreamMetadatas: out}, nil
+}
+
 func (s *streamsServer) Serve(grpcServer *grpc.Server) {
 	api.RegisterStreamsServer(grpcServer, s)
 }

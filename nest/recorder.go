@@ -31,6 +31,7 @@ type Recorder interface {
 	Offset() uint64
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	Load(source io.Reader) error
+	GetStatistics() commitlog.Statistics
 }
 
 type DumpRecord struct {
@@ -97,6 +98,9 @@ func NewRecorder(id uint64, stream string, shard uint64, datadir string, logger 
 	return s, nil
 }
 
+func (s *recorder) GetStatistics() commitlog.Statistics {
+	return s.log.GetStatistics()
+}
 func (s *recorder) Close() error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()

@@ -75,7 +75,21 @@ message DumpResponse {
   int64 TotalBytes = 3;
 }
 
+message ShardMetadata {
+  uint64 ID = 1;
+  uint64 SegmentCount = 2;
+  uint64 CurrentOffset = 3;
+  uint64 StoredBytes = 4;
+}
+message StreamMetadata {
+  string Name = 1;
+  repeated ShardMetadata ShardMetadatas = 2;
+}
+message ListStreamsRequest {}
+message ListStreamsResponse { repeated StreamMetadata StreamMetadatas = 1; }
+
 service Streams {
+  rpc ListStreams(ListStreamsRequest) returns (ListStreamsResponse) {}
   rpc Load(LoadRequest) returns (stream LoadResponse) {}
   rpc SST(SSTRequest) returns (stream SSTResponseChunk) {}
   rpc Dump(DumpRequest) returns (stream DumpResponse) {}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"path"
 
+	"github.com/vx-labs/nest/commitlog"
 	"github.com/vx-labs/nest/nest/fsm"
 	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
@@ -23,6 +24,7 @@ type Shard interface {
 	Offset() uint64
 	Ready() <-chan struct{}
 	Stop() error
+	GetStatistics() commitlog.Statistics
 }
 
 type shard struct {
@@ -34,6 +36,9 @@ type shard struct {
 	recorder   Recorder
 }
 
+func (s *shard) GetStatistics() commitlog.Statistics {
+	return s.recorder.GetStatistics()
+}
 func (s *shard) Ready() <-chan struct{} {
 	return s.node.Ready()
 }

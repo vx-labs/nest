@@ -11,6 +11,15 @@ import (
 	"go.uber.org/zap"
 )
 
+const streamTemplate = `• {{ .Name | green }}
+  Shards:
+{{- range $shard := .ShardMetadatas}}
+    • ID: {{ .ID | yellow }}
+      Segment Count: {{ .SegmentCount | yellow }}
+      Stored bytes: {{ .StoredBytes | yellow }}
+      Current offset: {{ .CurrentOffset | yellow }}
+{{- end }}`
+
 func Streams(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "streams",
@@ -68,5 +77,22 @@ func Streams(ctx context.Context, config *viper.Viper) *cobra.Command {
 
 	cmd.AddCommand(sstCommand)
 
+	list := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			out, err := api.NewStreamsClient(conn).ListStreams(ctx, &api.ListStreamsRequest{})
+			if err != nil {
+				l.Fatal("failed to list streams", zap.Error(err))
+			}
+			tpl := ParseTemplate(config.GetString("format"))
+			for _, elt := range out.StreamMetadatas {
+				tpl.Execute(cmd.OutOrStdout(), elt)
+			}
+		},
+	}
+	list.Flags().String("format", streamTemplate, "Format each event using Golang template format.")
+	cmd.AddCommand(list)
 	return cmd
 }
