@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -87,6 +89,9 @@ func Streams(ctx context.Context, config *viper.Viper) *cobra.Command {
 				l.Fatal("failed to list streams", zap.Error(err))
 			}
 			tpl := ParseTemplate(config.GetString("format"))
+			sort.Slice(out.StreamMetadatas, func(i, j int) bool {
+				return strings.Compare(out.StreamMetadatas[i].Name, out.StreamMetadatas[j].Name) == -1
+			})
 			for _, elt := range out.StreamMetadatas {
 				tpl.Execute(cmd.OutOrStdout(), elt)
 			}
