@@ -55,7 +55,7 @@ func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client
 		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 		stream.WithMaxBatchSize(250),
 	)
-	return w.events.Consume(client.Context(), consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
+	return w.events.Consume(client.Context(), "wasp_session", consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
 		out := make([]*audit.WaspAuditEvent, len(events))
 		for idx := range events {
 			event := events[idx]
