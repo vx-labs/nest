@@ -32,6 +32,7 @@ type Recorder interface {
 	Restore(ctx context.Context, snapshot []byte, caller RemoteCaller) error
 	Load(source io.Reader) error
 	GetStatistics() commitlog.Statistics
+	Latest() uint64
 }
 
 type DumpRecord struct {
@@ -112,6 +113,9 @@ func (s *recorder) Close() error {
 
 func (s *recorder) LookupTimestamp(ts uint64) uint64 {
 	return s.log.LookupTimestamp(ts)
+}
+func (s *recorder) Latest() uint64 {
+	return s.log.Latest()
 }
 func (s *recorder) SetCurrentStateOffset(v uint64) {
 	s.mtx.Lock()

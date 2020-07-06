@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
+	"go.uber.org/zap"
 )
 
 type EventProcessor func(context.Context, uint64, []*api.Event) error
@@ -18,12 +19,14 @@ type EventsLog interface {
 }
 
 type eventsLog struct {
-	shard Shard
+	shard  Shard
+	logger *zap.Logger
 }
 
-func NewEventsLog(ctx context.Context, shard Shard) (EventsLog, error) {
+func NewEventsLog(ctx context.Context, shard Shard, logger *zap.Logger) (EventsLog, error) {
 	s := &eventsLog{
-		shard: shard,
+		shard:  shard,
+		logger: logger,
 	}
 	return s, nil
 }
@@ -45,7 +48,7 @@ func (s *eventsLog) LookupTimestamp(ts uint64) uint64 {
 }
 func (s *eventsLog) Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error {
 	return s.shard.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(ctx, r, EventDecoder(processor))
+		return consumer.Consume(ctx, r, stream.PerformanceLogger(s.shard, s.logger, EventDecoder(processor)))
 	})
 }
 

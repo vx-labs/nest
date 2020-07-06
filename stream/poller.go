@@ -26,8 +26,9 @@ type ConsumerOpts struct {
 }
 
 type Batch struct {
-	FirstOffset uint64
-	Records     [][]byte
+	FirstOffset   uint64
+	LastTimestamp uint64
+	Records       [][]byte
 }
 type poller struct {
 	maxBatchSize int
@@ -135,6 +136,7 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 		entry, err := decoder.Decode()
 		if err == nil {
 			s.current.Records = append(s.current.Records, entry.Payload())
+			s.current.LastTimestamp = entry.Timestamp()
 		}
 		if len(s.current.Records) >= s.maxBatchSize {
 			if err := s.waitFlush(ctx); err != nil {

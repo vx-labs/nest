@@ -25,6 +25,7 @@ type Shard interface {
 	Ready() <-chan struct{}
 	Stop() error
 	GetStatistics() commitlog.Statistics
+	Latest() uint64
 }
 
 type shard struct {
@@ -71,6 +72,9 @@ func (s *shard) Load(r io.Reader) error {
 }
 func (s *shard) Offset() uint64 {
 	return s.recorder.Offset()
+}
+func (s *shard) Latest() uint64 {
+	return s.recorder.Latest()
 }
 
 func newShard(id uint64, stream string, shardID uint64, datadir string, clusterMultiNode cluster.MultiNode, raftConfig cluster.RaftConfig, logger *zap.Logger) (*shard, error) {

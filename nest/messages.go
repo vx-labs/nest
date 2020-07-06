@@ -10,6 +10,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/nest/stream"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -38,19 +39,19 @@ type Snapshot struct {
 
 type messageLog struct {
 	shard  Shard
+	logger *zap.Logger
 	topics *topicAggregate
 }
 
-func NewMessageLog(ctx context.Context, shard Shard) (MessageLog, error) {
+func NewMessageLog(ctx context.Context, shard Shard, logger *zap.Logger) (MessageLog, error) {
 	s := &messageLog{
 		shard:  shard,
+		logger: logger,
 		topics: &topicAggregate{topics: NewTopicState()},
 	}
 	go func() {
-		err := s.shard.Consume(func(r io.ReadSeeker) error {
-			consumer := stream.NewConsumer()
-			return consumer.Consume(ctx, r, RecordDecoder(s.topics.Processor()))
-		})
+		consumer := stream.NewConsumer()
+		err := s.Consume(ctx, consumer, s.topics.Processor())
 		if err != nil {
 			log.Print(err)
 		}
@@ -121,7 +122,7 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 
 func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
 	return s.shard.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(ctx, r, RecordDecoder(processor))
+		return consumer.Consume(ctx, r, stream.PerformanceLogger(s.shard, s.logger, RecordDecoder(processor)))
 	})
 }
 

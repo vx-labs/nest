@@ -29,6 +29,7 @@ type CommitLog interface {
 	Offset() uint64
 	Datadir() string
 	LookupTimestamp(ts uint64) uint64
+	Latest() uint64
 	GetStatistics() Statistics
 }
 
@@ -86,6 +87,12 @@ func (e *commitLog) Offset() uint64 {
 	defer e.mtx.Unlock()
 
 	return e.activeSegment.CurrentOffset() + e.activeSegment.BaseOffset()
+}
+func (e *commitLog) Latest() uint64 {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	return e.activeSegment.Latest()
 }
 func (e *commitLog) Close() error {
 	e.mtx.Lock()

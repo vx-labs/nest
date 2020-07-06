@@ -238,7 +238,12 @@ func (e *segment) Earliest() uint64 {
 	return n
 }
 func (e *segment) Latest() uint64 {
-	n, err := e.timestampIndex.readPosition(e.CurrentOffset())
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if e.CurrentOffset() == 0 {
+		return 0
+	}
+	n, err := e.timestampIndex.readPosition(e.CurrentOffset() - 1)
 	if err != nil {
 		return 0
 	}

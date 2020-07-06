@@ -194,12 +194,12 @@ func main() {
 			if err != nil {
 				nest.L(ctx).Fatal("failed to create events stream", zap.Error(err))
 			}
-			messageLog, err := nest.NewMessageLog(ctx, messageController.Shards()[0])
+			messageLog, err := nest.NewMessageLog(ctx, messageController.Shards()[0],nest.L(ctx))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
 
-			eventsLog, err := nest.NewEventsLog(ctx, eventsController.Shards()[0])
+			eventsLog, err := nest.NewEventsLog(ctx, eventsController.Shards()[0], nest.L(ctx))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load events log", zap.Error(err))
 			}
