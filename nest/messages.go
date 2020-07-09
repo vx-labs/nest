@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"log"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/nest/api"
@@ -50,16 +50,19 @@ func NewMessageLog(ctx context.Context, shard Shard, logger *zap.Logger) (Messag
 		topics: &topicAggregate{topics: NewTopicState()},
 	}
 	go func() {
-		consumer := stream.NewConsumer(
-			stream.WithName("topics_indexer"),
-			stream.WithPerformanceLogging(shard, s.logger.With(
-				zap.String("stream_name", "messages"),
-				zap.Uint64("shard_id", 0),
-			)),
-		)
-		err := s.Consume(ctx, consumer, s.topics.Processor())
-		if err != nil {
-			log.Print(err)
+		for {
+			consumer := stream.NewConsumer(
+				stream.WithName("topics_indexer"),
+				stream.WithPerformanceLogging(shard, s.logger.With(
+					zap.String("stream_name", "messages"),
+					zap.Uint64("shard_id", 0),
+				)),
+			)
+			err := s.Consume(ctx, consumer, s.topics.Processor())
+			if err != nil && err != context.Canceled {
+				logger.Error("topics indexer failed to run", zap.Error(err))
+				<-time.After(1 * time.Second)
+			}
 		}
 	}()
 	return s, nil
