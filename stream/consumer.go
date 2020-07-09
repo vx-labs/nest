@@ -3,6 +3,8 @@ package stream
 import (
 	"context"
 	"io"
+
+	"go.uber.org/zap"
 )
 
 type consumer struct {
@@ -25,6 +27,22 @@ func WithEOFBehaviour(v eofBehaviour) consumerOpts {
 }
 func WithOffsetIterator(v OffsetIterator) consumerOpts {
 	return func(c *ConsumerOpts) { c.OffsetProvider = v }
+}
+func WithName(v string) consumerOpts {
+	return func(c *ConsumerOpts) { c.Name = v }
+}
+func WithPerformanceLogging(latenessEstimator LatenessEstimator, logger *zap.Logger) consumerOpts {
+	return func(c *ConsumerOpts) {
+		c.Middleware = append(c.Middleware, func(p Processor, opts ConsumerOpts) Processor {
+			if (opts.Name) != "" {
+				logger = logger.With(zap.String("consumer_name", opts.Name))
+			}
+			logger = logger.With(
+				zap.Int("consumer_max_batch_size", opts.MaxBatchSize),
+			)
+			return PerformanceLogger(latenessEstimator, logger, p)
+		})
+	}
 }
 
 // TODO: WithCheckpoint(SnapshotStorage, interval) consumerOpts ?

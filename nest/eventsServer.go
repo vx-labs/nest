@@ -50,7 +50,7 @@ func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEv
 			stream.WithMaxBatchSize(250),
 		)
 	}
-	return s.state.Consume(client.Context(), "grpc_session", consumer,
+	return s.state.Consume(client.Context(), consumer,
 		EventTenantMatcher(in.Tenant,
 			func(_ context.Context, _ uint64, batch []*api.Event) error {
 				return client.Send(&api.GetEventResponse{Events: batch})

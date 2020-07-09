@@ -28,7 +28,7 @@ type MessageLog interface {
 	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
 	TopicsIterator(pattern []byte) stream.OffsetIterator
-	Consume(ctx context.Context, name string, consumer stream.Consumer, processor RecordProcessor) error
+	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
 }
 
 type Snapshot struct {
@@ -50,8 +50,14 @@ func NewMessageLog(ctx context.Context, shard Shard, logger *zap.Logger) (Messag
 		topics: &topicAggregate{topics: NewTopicState()},
 	}
 	go func() {
-		consumer := stream.NewConsumer()
-		err := s.Consume(ctx, "topics", consumer, s.topics.Processor())
+		consumer := stream.NewConsumer(
+			stream.WithName("topics_indexer"),
+			stream.WithPerformanceLogging(shard, s.logger.With(
+				zap.String("stream_name", "messages"),
+				zap.Uint64("shard_id", 0),
+			)),
+		)
+		err := s.Consume(ctx, consumer, s.topics.Processor())
 		if err != nil {
 			log.Print(err)
 		}
@@ -120,11 +126,9 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	return out
 }
 
-func (s *messageLog) Consume(ctx context.Context, name string, consumer stream.Consumer, processor RecordProcessor) error {
+func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
 	return s.shard.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(ctx, r, stream.PerformanceLogger(s.shard,
-			s.logger.With(zap.String("stream_name", "messages"), zap.String("consumer_name", name)),
-			RecordDecoder(processor)))
+		return consumer.Consume(ctx, r, RecordDecoder(processor))
 	})
 }
 

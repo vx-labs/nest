@@ -48,7 +48,7 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 			stream.WithMaxBatchSize(250),
 		)
 	}
-	return s.state.Consume(client.Context(), "grpc_session", consumer,
+	return s.state.Consume(client.Context(), consumer,
 		RecordMatcher(in.Patterns,
 			func(_ context.Context, _ uint64, batch []*api.Record) error {
 				return client.Send(&api.GetRecordsResponse{Records: batch})
@@ -90,7 +90,7 @@ func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopi
 			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
 		)
 	}
-	return s.state.Consume(client.Context(), "grpc_session", consumer,
+	return s.state.Consume(client.Context(), consumer,
 		func(_ context.Context, _ uint64, batch []*api.Record) error {
 			return client.Send(&api.GetTopicsResponse{Records: batch})
 		},

@@ -19,10 +19,12 @@ const (
 
 // ConsumerOpts describes stream session preferences
 type ConsumerOpts struct {
+	Name           string
 	MaxBatchSize   int
 	FromOffset     int64
 	EOFBehaviour   eofBehaviour
 	OffsetProvider OffsetIterator
+	Middleware     []func(Processor, ConsumerOpts) Processor
 }
 
 type Batch struct {

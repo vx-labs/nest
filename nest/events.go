@@ -15,7 +15,7 @@ type EventProcessor func(context.Context, uint64, []*api.Event) error
 type EventsLog interface {
 	PutEvents(ctx context.Context, b []*api.Event) error
 	LookupTimestamp(ts uint64) uint64
-	Consume(ctx context.Context, name string, consumer stream.Consumer, processor EventProcessor) error
+	Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error
 }
 
 type eventsLog struct {
@@ -46,11 +46,9 @@ func (s *eventsLog) PutEvents(ctx context.Context, b []*api.Event) error {
 func (s *eventsLog) LookupTimestamp(ts uint64) uint64 {
 	return s.shard.LookupTimestamp(ts)
 }
-func (s *eventsLog) Consume(ctx context.Context, name string, consumer stream.Consumer, processor EventProcessor) error {
+func (s *eventsLog) Consume(ctx context.Context, consumer stream.Consumer, processor EventProcessor) error {
 	return s.shard.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(ctx, r, stream.PerformanceLogger(s.shard,
-			s.logger.With(zap.String("stream_name", "events"), zap.String("consumer_name", name)),
-			EventDecoder(processor)))
+		return consumer.Consume(ctx, r, EventDecoder(processor))
 	})
 }
 
