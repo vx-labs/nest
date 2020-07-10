@@ -12,6 +12,8 @@ type Statistics struct {
 }
 
 func (c *commitLog) GetStatistics() Statistics {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 	var size int64
 	files, err := ioutil.ReadDir(c.datadir)
 	if err == nil {
@@ -22,7 +24,7 @@ func (c *commitLog) GetStatistics() Statistics {
 		}
 	}
 	return Statistics{
-		CurrentOffset: c.activeSegment.CurrentOffset(),
+		CurrentOffset: c.activeSegment.CurrentOffset() + c.activeSegment.BaseOffset(),
 		SegmentCount:  uint64(len(c.segments)),
 		StoredBytes:   uint64(size),
 	}
