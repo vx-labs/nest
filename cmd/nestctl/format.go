@@ -10,8 +10,8 @@ import (
 )
 
 var FuncMap = template.FuncMap{
-	"humanBytes": func(n int64) string {
-		return humanize.Bytes(uint64(n))
+	"humanBytes": func(n uint64) string {
+		return humanize.Bytes(n)
 	},
 	"bytesToString": func(b []byte) string { return string(b) },
 	"shorten":       func(s string) string { return s[0:8] },

@@ -18,7 +18,7 @@ const streamTemplate = `• {{ .Name | green }}
 {{- range $shard := .ShardMetadatas}}
     • ID: {{ .ID | yellow }}
       Segment Count: {{ .SegmentCount | yellow }}
-      Stored bytes: {{ .StoredBytes | yellow }}
+      Stored bytes: {{ .StoredBytes | humanBytes | yellow }}
       Current offset: {{ .CurrentOffset | yellow }}
 {{- end }}`
 
