@@ -53,7 +53,6 @@ func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client
 	consumer := stream.NewConsumer(
 		stream.FromOffset(int64(offset)),
 		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-		stream.WithMaxBatchSize(250),
 	)
 	return w.events.Consume(client.Context(), consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
 		out := make([]*audit.WaspAuditEvent, len(events))

@@ -53,7 +53,7 @@ type Consumer interface {
 
 func NewConsumer(opts ...consumerOpts) Consumer {
 	config := ConsumerOpts{
-		MaxBatchSize: 250,
+		MaxBatchSize: 10,
 		EOFBehaviour: EOFBehaviourPoll,
 		FromOffset:   0,
 	}

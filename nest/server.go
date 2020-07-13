@@ -39,13 +39,11 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-			stream.WithMaxBatchSize(250),
 		)
 	} else {
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-			stream.WithMaxBatchSize(250),
 		)
 	}
 	return s.state.Consume(client.Context(), consumer,
@@ -79,14 +77,12 @@ func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopi
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-			stream.WithMaxBatchSize(250),
 			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
 		)
 	} else {
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-			stream.WithMaxBatchSize(250),
 			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
 		)
 	}

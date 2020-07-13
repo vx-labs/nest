@@ -41,13 +41,11 @@ func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEv
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-			stream.WithMaxBatchSize(250),
 		)
 	} else {
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-			stream.WithMaxBatchSize(250),
 		)
 	}
 	return s.state.Consume(client.Context(), consumer,
