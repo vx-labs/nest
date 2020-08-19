@@ -18,6 +18,7 @@ import (
 
 type StreamsServer interface {
 	RegisterShards(stream string, shards []Shard) error
+	Serve(*grpc.Server)
 	api.StreamsServer
 }
 

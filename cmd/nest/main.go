@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/nest/nest"
-	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
 	"github.com/vx-labs/wasp/rpc"
@@ -162,7 +161,7 @@ func main() {
 			}
 
 			streamsServer := nest.NewStreamsServer()
-			api.RegisterStreamsServer(server, streamsServer)
+			streamsServer.Serve(server)
 			raftConfig := cluster.RaftConfig{
 				ExpectedNodeCount: config.GetInt("raft-bootstrap-expect"),
 				Network: cluster.NetworkConfig{
@@ -194,7 +193,7 @@ func main() {
 			if err != nil {
 				nest.L(ctx).Fatal("failed to create events stream", zap.Error(err))
 			}
-			messageLog, err := nest.NewMessageLog(ctx, messageController.Shards()[0],nest.L(ctx))
+			messageLog, err := nest.NewMessageLog(ctx, messageController.Shards()[0], nest.L(ctx))
 			if err != nil {
 				nest.L(ctx).Fatal("failed to load message log", zap.Error(err))
 			}
