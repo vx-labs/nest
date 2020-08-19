@@ -222,9 +222,10 @@ func main() {
 
 			go stats.ListenAndServe(config.GetInt("metrics-port"))
 			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
-			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
+			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_NOT_SERVING)
 			messageController.WaitReady(ctx)
 			eventsController.WaitReady(ctx)
+			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
 			nest.L(ctx).Info("nest ready")
 
 			sigc := make(chan os.Signal, 1)
