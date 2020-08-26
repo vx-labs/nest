@@ -11,7 +11,9 @@ import (
 	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"
 	"github.com/vx-labs/wasp/cluster/raft"
+	"go.etcd.io/etcd/etcdserver/api/snap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 type Shard interface {
@@ -85,39 +87,33 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 	if err != nil {
 		return nil, err
 	}
+
+	stateMachine := fsm.NewFSM(id, recorder, commandsCh)
+
 	raftConfig.AppliedIndex = recorder.CurrentStateOffset()
 	raftConfig.GetStateSnapshot = recorder.Snapshot
+	raftConfig.CommitApplier = func(ctx context.Context, event raft.Commit) error {
+		return stateMachine.Apply(event.Index, event.Payload)
+	}
+	var remoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
+	raftConfig.SnapshotApplier = func(ctx context.Context, index uint64, snapshotter *snap.Snapshotter) error {
+		snapshot, err := snapshotter.Load()
+		if err != nil {
+			logger.Error("failed to load snapshot", zap.Error(err))
+			return err
+		}
+		logger.Debug("starting snapshot restore")
+		err = recorder.Restore(ctx, snapshot.Data, remoteCaller)
+		if err != nil {
+			logger.Error("failed to restore snapshot", zap.Error(err))
+		}
+		return err
+	}
 	node := clusterMultiNode.Node(fmt.Sprintf("%s-%d", stream, shardID), raftConfig)
-
+	remoteCaller = node.Call
 	ctx, cancel := context.WithCancel(context.Background())
-	snapshotter := <-node.Snapshotter()
-	stateMachine := fsm.NewFSM(id, recorder, commandsCh)
 	ctx = StoreLogger(ctx, logger)
 	operations := async.NewOperations(ctx, logger)
-	operations.Run("recorder command processor", func(ctx context.Context) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event := <-node.Commits():
-				if event.Payload == nil {
-					snapshot, err := snapshotter.Load()
-					if err != nil {
-						logger.Error("failed to load snapshot", zap.Error(err))
-						continue
-					}
-					logger.Debug("starting snapshot restore")
-					err = recorder.Restore(ctx, snapshot.Data, node.Call)
-					if err != nil {
-						logger.Error("failed to restore snapshot", zap.Error(err))
-						continue
-					}
-				} else {
-					stateMachine.Apply(event.Index, event.Payload)
-				}
-			}
-		}
-	})
 	operations.Run("command publisher", func(ctx context.Context) {
 		for {
 			select {
