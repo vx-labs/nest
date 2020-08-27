@@ -265,6 +265,10 @@ func main() {
 			select {
 			case <-sigc:
 			}
+			if config.GetBool("unclean-shutdown") {
+				nest.L(ctx).Info("nest unclean shutdown requested")
+				os.Exit(0)
+			}
 			nest.L(ctx).Info("nest shutdown initiated")
 			err = messageController.Shutdown(ctx)
 			if err != nil {
@@ -329,6 +333,8 @@ func main() {
 	cmd.Flags().String("rpc-tls-certificate-authority-file", "", "x509 certificate authority used by RPC Server.")
 	cmd.Flags().String("rpc-tls-certificate-file", "", "x509 certificate used by RPC Server.")
 	cmd.Flags().String("rpc-tls-private-key-file", "", "Private key used by RPC Server.")
+
+	cmd.Flags().Bool("unclean-shutdown", false, "Do not attempt to leave raft cluster, nor to close commitlog when shutting down.")
 
 	cmd.AddCommand(TLSHelper(config))
 	cmd.Execute()
