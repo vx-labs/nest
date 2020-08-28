@@ -110,6 +110,9 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 		return err
 	}
 	node := clusterMultiNode.Node(fmt.Sprintf("%s-%d", stream, shardID), raftConfig)
+	if node.Index() < raftConfig.AppliedIndex {
+		logger.Fatal("raft index corrupted")
+	}
 	remoteCaller = node.Call
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = StoreLogger(ctx, logger)
