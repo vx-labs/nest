@@ -31,6 +31,7 @@ type CommitLog interface {
 	LookupTimestamp(ts uint64) uint64
 	Latest() uint64
 	GetStatistics() Statistics
+	TruncateAfter(offset uint64) error
 }
 
 func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
@@ -143,6 +144,10 @@ func (e *commitLog) appendSegment(offset uint64) error {
 func (e *commitLog) lookupOffset(offset uint64) int {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
+	return e.lookupOffsetUnlocked(offset)
+}
+
+func (e *commitLog) lookupOffsetUnlocked(offset uint64) int {
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
 		return e.segments[i] > offset
@@ -187,6 +192,42 @@ func (e *commitLog) Reader() Cursor {
 	}
 }
 
+// Truncate the log *after* the given offset. You must ensure no one is reading the log before truncating it.
+func (e *commitLog) TruncateAfter(offset uint64) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	segmentIdx := e.lookupOffsetUnlocked(offset)
+
+	var segment Segment
+	var err error
+	if segmentIdx == len(e.segments)-1 {
+		segment = e.activeSegment
+	} else {
+		e.activeSegment.Close()
+		segment, err = openSegment(e.datadir, e.segments[segmentIdx], e.segmentMaxRecordCount, true)
+		if err != nil {
+			panic(err)
+		}
+	}
+	err = segment.TruncateAfter(offset)
+	if err != nil {
+		panic(err)
+	}
+	e.activeSegment = segment
+	for i := segmentIdx + 1; i < len(e.segments); i++ {
+		segment, err := openSegment(e.datadir, e.segments[i], e.segmentMaxRecordCount, true)
+		if err != nil {
+			panic(err)
+		}
+		err = segment.Delete()
+		if err != nil {
+			panic(err)
+		}
+	}
+	e.segments = e.segments[:segmentIdx+1]
+	return nil
+}
 func (e *commitLog) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()

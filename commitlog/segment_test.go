@@ -47,6 +47,14 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, uint64(0), s.(*segment).LookupTimestamp(0))
 		require.Equal(t, uint64(4), s.(*segment).LookupTimestamp(10))
 	})
+	t.Run("should allow truncate after a given offset", func(t *testing.T) {
+		require.Equal(t, uint64(4), s.CurrentOffset())
+		require.NoError(t, s.(*segment).TruncateAfter(2))
+		require.Equal(t, uint64(3), s.CurrentOffset())
+		n, err := s.WriteEntry(5, value)
+		require.NoError(t, err)
+		require.Equal(t, uint64(3), n)
+	})
 }
 
 func BenchmarkSegment(b *testing.B) {

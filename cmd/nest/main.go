@@ -255,6 +255,7 @@ func main() {
 			messageController.WaitReady(ctx)
 			eventsController.WaitReady(ctx)
 			healthServer.Resume()
+			messageLog.StartConsumers(ctx)
 			nest.L(ctx).Info("nest ready")
 
 			sigc := make(chan os.Signal, 1)

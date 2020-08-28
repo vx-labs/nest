@@ -92,6 +92,7 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 
 	raftConfig.AppliedIndex = recorder.CurrentStateOffset()
 	raftConfig.GetStateSnapshot = recorder.Snapshot
+	raftConfig.SnapshotNotifier = recorder.SyncToIndex
 	raftConfig.CommitApplier = func(ctx context.Context, event raft.Commit) error {
 		return stateMachine.Apply(event.Index, event.Payload)
 	}
@@ -110,8 +111,17 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 		return err
 	}
 	node := clusterMultiNode.Node(fmt.Sprintf("%s-%d", stream, shardID), raftConfig)
-	if node.Index() < raftConfig.AppliedIndex {
-		logger.Fatal("raft index corrupted")
+	nodeIndex := node.Index()
+	if false && nodeIndex < raftConfig.AppliedIndex {
+		logger.Fatal("raft index is behind log index", zap.Error(err), zap.Uint64("log_index", raftConfig.AppliedIndex), zap.Uint64("raft_index", nodeIndex))
+		err := recorder.Truncate()
+		if err != nil {
+			logger.Fatal("raft index is behind log index, and truncating failed", zap.Error(err))
+		} else {
+			logger.Warn("raft index is behind log index, truncated log")
+			node.Reset()
+			raftConfig.AppliedIndex = 0
+		}
 	}
 	remoteCaller = node.Call
 	ctx, cancel := context.WithCancel(context.Background())
@@ -134,7 +144,7 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 		}
 	})
 	operations.Run("cluster node", func(ctx context.Context) {
-		node.Run(ctx)
+		node.RunFromAppliedIndex(ctx, raftConfig.AppliedIndex)
 	})
 	return &shard{
 		ctx:        ctx,

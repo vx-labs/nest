@@ -24,6 +24,7 @@ type RemoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type MessageLog interface {
+	StartConsumers(ctx context.Context)
 	LookupTimestamp(ts uint64) uint64
 	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
@@ -49,25 +50,28 @@ func NewMessageLog(ctx context.Context, shard Shard, logger *zap.Logger) (Messag
 		logger: logger,
 		topics: &topicAggregate{topics: NewTopicState()},
 	}
+
+	return s, nil
+}
+
+func (s *messageLog) StartConsumers(ctx context.Context) {
 	go func() {
 		for {
 			consumer := stream.NewConsumer(
 				stream.WithName("topics_indexer"),
-				stream.WithPerformanceLogging(shard, s.logger.With(
+				stream.WithPerformanceLogging(s.shard, s.logger.With(
 					zap.String("stream_name", "messages"),
 					zap.Uint64("shard_id", 0),
 				)),
 			)
 			err := s.Consume(ctx, consumer, s.topics.Processor())
 			if err != nil && err != context.Canceled {
-				logger.Error("topics indexer failed to run", zap.Error(err))
+				s.logger.Error("topics indexer failed to run", zap.Error(err))
 				<-time.After(1 * time.Second)
 			}
 		}
 	}()
-	return s, nil
 }
-
 func (s *messageLog) LookupTimestamp(ts uint64) uint64 {
 	return s.shard.LookupTimestamp(ts)
 }

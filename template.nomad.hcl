@@ -1,11 +1,12 @@
-job "nest" {
+job "${deployment_name}" {
   datacenters = ["dc1"]
   type        = "service"
 
   update {
     max_parallel     = 1
     min_healthy_time = "30s"
-    healthy_deadline = "3m"
+    progress_deadline = "60m"
+    healthy_deadline = "30m"
     auto_revert      = true
     canary           = 0
   }
@@ -66,7 +67,7 @@ no_proxy="10.0.0.0/8,172.16.0.0/12,*.service.consul"
         data = <<EOH
 {{- $cn := printf "common_name=%s" (env "NOMAD_ALLOC_ID") -}}
 {{- $ipsans := printf "ip_sans=%s" (env "NOMAD_IP_rpc") -}}
-{{- $sans := printf "alt_names=messages.iot.cloud.vx-labs.net" -}}
+{{- $sans := printf "alt_names=messages-beta.iot.cloud.vx-labs.net" -}}
 {{- $path := printf "pki/issue/grpc" -}}
 {{ with secret $path $cn $ipsans $sans "ttl=48h" }}{{ .Data.certificate }}{{ end }}
 EOH
@@ -80,7 +81,7 @@ EOH
         data = <<EOH
 {{- $cn := printf "common_name=%s" (env "NOMAD_ALLOC_ID") -}}
 {{- $ipsans := printf "ip_sans=%s" (env "NOMAD_IP_rpc") -}}
-{{- $sans := printf "alt_names=messages.iot.cloud.vx-labs.net" -}}
+{{- $sans := printf "alt_names=messages-beta.iot.cloud.vx-labs.net" -}}
 {{- $path := printf "pki/issue/grpc" -}}
 {{ with secret $path $cn $ipsans $sans "ttl=48h" }}{{ .Data.private_key }}{{ end }}
 EOH
@@ -94,7 +95,7 @@ EOH
         data = <<EOH
 {{- $cn := printf "common_name=%s" (env "NOMAD_ALLOC_ID") -}}
 {{- $ipsans := printf "ip_sans=%s" (env "NOMAD_IP_rpc") -}}
-{{- $sans := printf "alt_names=messages.iot.cloud.vx-labs.net" -}}
+{{- $sans := printf "alt_names=messages-beta.iot.cloud.vx-labs.net" -}}
 {{- $path := printf "pki/issue/grpc" -}}
 {{ with secret $path $cn $ipsans $sans "ttl=48h" }}{{ .Data.issuing_ca }}{{ end }}
 EOH
@@ -106,7 +107,7 @@ EOH
 
           config {
             fluentd-address = "localhost:24224"
-            tag             = "nest"
+            tag             = "${deployment_name}"
           }
         }
 
@@ -116,9 +117,10 @@ EOH
           "--mtls",
           "--raft-bootstrap-expect", "3",
           "--consul-join",
-          "--consul-service-name", "nest",
+          "--consul-service-name", "${deployment_name}",
           "--consul-service-tag", "gossip",
           "--metrics-port", "8089",
+          "--health-port", "8090",
           "--raft-advertized-address", "$${NOMAD_IP_rpc}", "--raft-advertized-port", "$${NOMAD_HOST_PORT_rpc}",
           "--serf-advertized-address", "$${NOMAD_IP_gossip}", "--serf-advertized-port", "$${NOMAD_HOST_PORT_gossip}",
         ]
@@ -128,6 +130,7 @@ EOH
           gossip  = 2799
           rpc     = 2899
           metrics = 8089
+          health = 8090
         }
       }
 
@@ -138,27 +141,35 @@ EOH
         network {
           mbits = 10
           port "rpc" {}
+          port "health" {}
           port "gossip" {}
           port "metrics" {}
         }
       }
 
       service {
-        name = "nest"
+        name = "${deployment_name}"
         port = "rpc"
         tags = [
           "rpc",
           "${service_version}",
           "traefik.enable=true",
-          "traefik.tcp.routers.nest.rule=HostSNI(`messages.iot.cloud.vx-labs.net`)",
-          "traefik.tcp.routers.nest.entrypoints=https",
-          "traefik.tcp.routers.nest.service=nest",
-          "traefik.tcp.routers.nest.tls",
-          "traefik.tcp.routers.nest.tls.passthrough=true",
+          "traefik.tcp.routers.${deployment_name}.rule=HostSNI(`messages-beta.iot.cloud.vx-labs.net`)",
+          "traefik.tcp.routers.${deployment_name}.entrypoints=https",
+          "traefik.tcp.routers.${deployment_name}.service=${deployment_name}",
+          "traefik.tcp.routers.${deployment_name}.tls",
+          "traefik.tcp.routers.${deployment_name}.tls.passthrough=true",
         ]
+        check {
+          type     = "http"
+          path     = "/health?service=rpc"
+          port     = "health"
+          interval = "30s"
+          timeout  = "2s"
+        }
       }
       service {
-        name = "nest"
+        name = "${deployment_name}"
         port = "gossip"
         tags = [
           "gossip",
@@ -166,7 +177,7 @@ EOH
         ]
       }
       service {
-        name = "nest"
+        name = "${deployment_name}"
         port = "metrics"
         tags = ["prometheus", "${service_version}"]
 
