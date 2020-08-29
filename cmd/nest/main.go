@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -124,7 +125,9 @@ func main() {
 			}
 			operations := async.NewOperations(ctx, nest.L(ctx))
 			healthServer := health.NewServer()
-			healthServer.Resume()
+			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
+			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_NOT_SERVING)
+
 			if config.GetString("rpc-tls-certificate-file") == "" || config.GetString("rpc-tls-private-key-file") == "" {
 				nest.L(ctx).Warn("TLS certificate or private key not provided. GRPC transport security will use a self-signed generated certificate.")
 			}
@@ -221,10 +224,38 @@ func main() {
 			})
 
 			go stats.ListenAndServe(config.GetInt("metrics-port"))
-			healthServer.SetServingStatus("node", healthpb.HealthCheckResponse_SERVING)
-			healthServer.SetServingStatus("rpc", healthpb.HealthCheckResponse_SERVING)
+			go func() {
+				mux := http.NewServeMux()
+				mux.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					out, err := healthServer.Check(r.Context(), &healthpb.HealthCheckRequest{
+						Service: r.URL.Query().Get("service"),
+					})
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						json.NewEncoder(w).Encode(err)
+						return
+					}
+					switch out.Status {
+					case healthpb.HealthCheckResponse_SERVING:
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte(`{"status": "passing", "msg":"service is running"}`))
+					case healthpb.HealthCheckResponse_SERVICE_UNKNOWN:
+						w.WriteHeader(http.StatusInternalServerError)
+						w.Write([]byte(`{"status": "not_passing", "msg":"service unknown"}`))
+					case healthpb.HealthCheckResponse_NOT_SERVING:
+						w.WriteHeader(http.StatusTooManyRequests)
+						w.Write([]byte(`{"status": "warning", "msg":"service is not serving"}`))
+					case healthpb.HealthCheckResponse_UNKNOWN:
+						w.WriteHeader(http.StatusInternalServerError)
+						w.Write([]byte(`{"status": "not_passing", "msg":"unknown failure"}`))
+					}
+				}))
+				http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.GetInt("health-port")), mux)
+			}()
 			messageController.WaitReady(ctx)
 			eventsController.WaitReady(ctx)
+			healthServer.Resume()
+			messageLog.StartConsumers(ctx)
 			nest.L(ctx).Info("nest ready")
 
 			sigc := make(chan os.Signal, 1)
@@ -234,6 +265,10 @@ func main() {
 				syscall.SIGQUIT)
 			select {
 			case <-sigc:
+			}
+			if config.GetBool("unclean-shutdown") {
+				nest.L(ctx).Info("nest unclean shutdown requested")
+				os.Exit(0)
 			}
 			nest.L(ctx).Info("nest shutdown initiated")
 			err = messageController.Shutdown(ctx)
@@ -283,6 +318,7 @@ func main() {
 	cmd.Flags().String("consul-service-name", "Nest", "Consul auto-join service name.")
 	cmd.Flags().String("consul-service-tag", "gossip", "Consul auto-join service tag.")
 
+	cmd.Flags().Int("health-port", 8090, "Start Healthcheck HTTP server on this port.")
 	cmd.Flags().Int("metrics-port", 0, "Start Prometheus HTTP metrics server on this port.")
 	cmd.Flags().Int("serf-port", 2799, "Membership (Serf) port.")
 	cmd.Flags().Int("raft-port", 2899, "Clustering (Raft) port.")
@@ -298,6 +334,8 @@ func main() {
 	cmd.Flags().String("rpc-tls-certificate-authority-file", "", "x509 certificate authority used by RPC Server.")
 	cmd.Flags().String("rpc-tls-certificate-file", "", "x509 certificate used by RPC Server.")
 	cmd.Flags().String("rpc-tls-private-key-file", "", "Private key used by RPC Server.")
+
+	cmd.Flags().Bool("unclean-shutdown", false, "Do not attempt to leave raft cluster, nor to close commitlog when shutting down.")
 
 	cmd.AddCommand(TLSHelper(config))
 	cmd.Execute()

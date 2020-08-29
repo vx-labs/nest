@@ -53,7 +53,7 @@ func Streams(ctx context.Context, config *viper.Viper) *cobra.Command {
 			if err != nil {
 				l.Fatal("failed to start SST", zap.Error(err))
 			}
-
+			l.Info("receiving SST")
 			for {
 				chunk, err := stream.Recv()
 				if err == io.EOF {

@@ -29,6 +29,7 @@ type Segment interface {
 	Earliest() uint64
 	Latest() uint64
 	LookupTimestamp(ts uint64) uint64
+	TruncateAfter(offset uint64) error
 	io.WriterTo
 	io.Reader
 	io.Closer
@@ -64,8 +65,6 @@ func (s *segment) Close() error {
 }
 func (s *segment) Delete() error {
 	s.Close()
-	s.offsetIndex.Close()
-	s.timestampIndex.Close()
 	err := os.Remove(s.offsetIndex.FilePath())
 	if err != nil {
 		return err
@@ -197,14 +196,14 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64, write bool) (
 	return s, nil
 }
 
-func checkSegmentIntegrity(r io.ReadSeeker, size uint64) (uint64, error) {
+func checkSegmentIntegrity(r io.ReadSeeker, maxRecordCount uint64) (uint64, error) {
 	_, err := r.Seek(0, io.SeekStart)
 	if err != nil {
 		return 0, ErrSegmentCorrupt
 	}
 	buf := make([]byte, EntryHeaderSize)
 	var offset uint64
-	for offset = 0; offset < size; offset++ {
+	for offset = 0; offset < maxRecordCount; offset++ {
 		n, err := r.Read(buf)
 		if err == io.EOF {
 			return offset, nil
@@ -280,4 +279,39 @@ func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.currentOffset++
 	e.currentPosition += uint64(n)
 	return writtenOffset, nil
+}
+
+// Truncate the segment *after* the given offset. You must ensure no one is reading this segment before truncating it.
+func (e *segment) TruncateAfter(offset uint64) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	if e.currentOffset < offset {
+		return nil
+	}
+	delta := e.currentOffset - offset
+	e.currentOffset = offset + 1
+	newPosition, err := e.offsetIndex.readPosition(e.currentOffset)
+	if err != nil {
+		return err
+	}
+	e.currentPosition = newPosition
+	e.fd.Seek(io.SeekStart, int(newPosition))
+	var i uint64
+	for i = 0; i < delta; i++ {
+		err := e.offsetIndex.writePosition(e.currentOffset+i, 0)
+		if err != nil {
+			// Index update failed: return an error and do not update write cursor
+			return err
+		}
+		err = e.timestampIndex.writePosition(e.currentOffset+i, 0)
+		if err != nil {
+			// Index update failed: return an error and do not update write cursor
+			return err
+		}
+	}
+	err = e.fd.Truncate(int64(newPosition))
+	if err != nil {
+		return err
+	}
+	return e.fd.Sync()
 }

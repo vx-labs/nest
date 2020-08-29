@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -75,6 +76,27 @@ func main() {
 	members.Flags().StringP("node", "n", "", "Cluster node to request")
 	members.MarkFlagRequired("node")
 	raft.AddCommand(members)
+	removeMember := &cobra.Command{
+		Use: "remove-member",
+		Run: func(cmd *cobra.Command, args []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			id, err := strconv.ParseUint(args[0], 16, 64)
+			if err != nil {
+				l.Fatal("invalid node id specified", zap.Error(err))
+			}
+			_, err = cluster.NewMultiRaftClient(conn).RemoveMember(ctx, &cluster.RemoveMultiRaftMemberRequest{
+				ClusterID: config.GetString("node"),
+				ID:        id,
+			})
+			if err != nil {
+				l.Fatal("failed to remove raft member", zap.Error(err))
+			}
+		},
+	}
+	removeMember.Flags().StringP("node", "n", "", "Cluster node to request")
+	removeMember.MarkFlagRequired("node")
+	removeMember.Args = cobra.ExactArgs(1)
+	raft.AddCommand(removeMember)
 
 	hostname, _ := os.Hostname()
 

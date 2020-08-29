@@ -183,6 +183,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 			bar := pb.StartNew(total)
 			go func() {
 				defer close(done)
+				payload := make([]byte, config.GetInt("size-in-bytes"))
 				ticker := time.NewTicker(config.GetDuration("interval"))
 				defer ticker.Stop()
 				for {
@@ -190,7 +191,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 						return
 					}
 					_, err := api.NewMessagesClient(conn).PutRecords(ctx, &api.PutRecordsRequest{
-						Records: []*api.Record{&api.Record{Payload: []byte("test"), Topic: []byte("test"), Timestamp: time.Now().UnixNano()}},
+						Records: []*api.Record{&api.Record{Payload: payload, Topic: []byte("test"), Timestamp: time.Now().UnixNano()}},
 					})
 					if err != nil {
 						if ctx.Err() == context.Canceled {
@@ -215,6 +216,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 		},
 	}
 	bench.Flags().DurationP("interval", "i", 1*time.Millisecond, "interval between two API call")
+	bench.Flags().IntP("size-in-bytes", "n", 1, "payload size, in bytes")
 	cmd.AddCommand(bench)
 	decodeCommand := &cobra.Command{
 		Use:  "decode",

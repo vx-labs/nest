@@ -19,7 +19,8 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/tysontate/gommap v0.0.0-20190103205956-899e1273fb5c
 	github.com/vx-labs/vespiary v0.0.0-20200629130122-c4600a9a361c
-	github.com/vx-labs/wasp v1.7.6
+	github.com/vx-labs/wasp v1.8.29
+	go.etcd.io/etcd v0.0.0-20200716221620-18dfb9cca345
 	go.uber.org/zap v1.14.1
 	google.golang.org/grpc v1.28.0
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect

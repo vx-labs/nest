@@ -1,0 +1,7 @@
+.terraform
+.vscode
+.git
+terraform*
+*.tf
+Procfile
+run_config

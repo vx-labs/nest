@@ -13,6 +13,7 @@ resource "nomad_job" "nest" {
     {
       service_image        = var.image_repository,
       service_version        = var.image_tag,
+      deployment_name = "nest",
     },
   )
 }

@@ -33,6 +33,8 @@ type Recorder interface {
 	Load(source io.Reader) error
 	GetStatistics() commitlog.Statistics
 	Latest() uint64
+	Truncate() error
+	SyncToIndex(stateIndex uint64) error
 }
 
 type DumpRecord struct {
@@ -113,6 +115,24 @@ func (s *recorder) Close() error {
 
 func (s *recorder) LookupTimestamp(ts uint64) uint64 {
 	return s.log.LookupTimestamp(ts)
+}
+func (s *recorder) SyncToIndex(stateIndex uint64) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.setCurrentStateOffset(stateIndex)
+	return s.stateOffset.Sync(gommap.MS_SYNC)
+}
+func (s *recorder) Truncate() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.setCurrentStateOffset(0)
+	s.log.Delete()
+	log, err := commitlog.Open(path.Join(s.datadir, s.stream, fmt.Sprintf("%d", s.shard)), 250)
+	if err != nil {
+		return err
+	}
+	s.log = log
+	return nil
 }
 func (s *recorder) Latest() uint64 {
 	return s.log.Latest()

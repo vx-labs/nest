@@ -160,7 +160,6 @@ func (s *streamsServer) Load(in *api.LoadRequest, stream api.Streams_LoadServer)
 func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) error {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
-
 	shards, ok := s.states[in.Stream]
 	if !ok {
 		return status.Error(codes.NotFound, "stream not found")
