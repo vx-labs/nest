@@ -19,12 +19,13 @@ const (
 
 // ConsumerOpts describes stream session preferences
 type ConsumerOpts struct {
-	Name           string
-	MaxBatchSize   int
-	FromOffset     int64
-	EOFBehaviour   eofBehaviour
-	OffsetProvider OffsetIterator
-	Middleware     []func(Processor, ConsumerOpts) Processor
+	Name                      string
+	MaxBatchSize              int
+	MaxBatchMemorySizeInBytes int
+	FromOffset                int64
+	EOFBehaviour              eofBehaviour
+	OffsetProvider            OffsetIterator
+	Middleware                []func(Processor, ConsumerOpts) Processor
 }
 
 type Batch struct {
@@ -33,11 +34,13 @@ type Batch struct {
 	Records       [][]byte
 }
 type poller struct {
-	maxBatchSize int
-	minBatchSize int
-	current      Batch
-	ch           chan Batch
-	err          error
+	maxBatchSize              int
+	minBatchSize              int
+	maxBatchMemorySizeInBytes int
+	currentMemorySizeInBytes  int
+	current                   Batch
+	ch                        chan Batch
+	err                       error
 }
 
 type Poller interface {
@@ -53,9 +56,10 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 		opts.OffsetProvider.AdvanceTo(uint64(opts.FromOffset))
 	}
 	s := &poller{
-		ch:           make(chan Batch),
-		maxBatchSize: opts.MaxBatchSize,
-		minBatchSize: 10,
+		ch:                        make(chan Batch),
+		maxBatchSize:              opts.MaxBatchSize,
+		maxBatchMemorySizeInBytes: opts.MaxBatchMemorySizeInBytes,
+		minBatchSize:              10,
 		current: Batch{
 			FirstOffset: uint64(offset),
 			Records:     [][]byte{},
@@ -77,6 +81,7 @@ func (s *poller) waitFlush(ctx context.Context) error {
 	}
 	select {
 	case s.ch <- s.current:
+		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
 			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
 			Records:     [][]byte{},
@@ -92,6 +97,7 @@ func (s *poller) tryFlush(ctx context.Context) error {
 	}
 	select {
 	case s.ch <- s.current:
+		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
 			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
 			Records:     [][]byte{},
@@ -137,7 +143,14 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 		}
 		entry, err := decoder.Decode()
 		if err == nil {
+			if s.currentMemorySizeInBytes+len(entry.Payload()) > s.maxBatchMemorySizeInBytes {
+				if err := s.waitFlush(ctx); err != nil {
+					s.err = err
+					return
+				}
+			}
 			s.current.Records = append(s.current.Records, entry.Payload())
+			s.currentMemorySizeInBytes += len(entry.Payload())
 			s.current.LastTimestamp = entry.Timestamp()
 		}
 		if len(s.current.Records) >= s.maxBatchSize {
