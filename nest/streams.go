@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -157,6 +156,14 @@ func (s *streamsServer) Load(in *api.LoadRequest, stream api.Streams_LoadServer)
 	return shard.Load(r)
 }
 
+type grpcStreamSink struct {
+	stream api.Streams_SSTServer
+}
+
+func (g *grpcStreamSink) Write(buf []byte) (int, error) {
+	return len(buf), g.stream.Send(&api.SSTResponseChunk{Chunk: buf})
+}
+
 func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) error {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
@@ -168,37 +175,7 @@ func (s *streamsServer) SST(in *api.SSTRequest, stream api.Streams_SSTServer) er
 		return status.Error(codes.NotFound, "shard not found")
 	}
 	shard := shards[int(in.Shard)]
-	file, err := ioutil.TempFile("", "sst.*.nest")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(file.Name())
-	defer file.Close()
-	err = shard.Dump(file, in.FromOffset)
-	if err != nil {
-		return err
-	}
-	err = file.Sync()
-	if err != nil {
-		return err
-	}
-	file.Seek(0, io.SeekStart)
-	chunk := make([]byte, 4096)
-	for {
-		n, err := file.Read(chunk)
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		err = stream.Send(&api.SSTResponseChunk{
-			Chunk: chunk[:n],
-		})
-		if err != nil {
-			return err
-		}
-	}
+	return shard.Dump(&grpcStreamSink{stream: stream}, in.FromOffset)
 }
 
 func (s *streamsServer) ListStreams(ctx context.Context, input *api.ListStreamsRequest) (*api.ListStreamsResponse, error) {
