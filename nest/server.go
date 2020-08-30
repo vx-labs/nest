@@ -34,14 +34,19 @@ func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRe
 			offset = timestampOffset
 		}
 	}
+	if in.MaxRecordCount == 0 {
+		in.MaxRecordCount = -1
+	}
 
 	if in.Watch {
 		consumer = stream.NewConsumer(
+			stream.WithMaxRecordCount(in.MaxRecordCount),
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
 		)
 	} else {
 		consumer = stream.NewConsumer(
+			stream.WithMaxRecordCount(in.MaxRecordCount),
 			stream.FromOffset(int64(offset)),
 			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
 		)

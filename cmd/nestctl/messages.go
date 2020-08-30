@@ -68,10 +68,11 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 				timestamp = time.Now().Add(-since).UnixNano()
 			}
 			stream, err := api.NewMessagesClient(conn).GetRecords(ctx, &api.GetRecordsRequest{
-				Patterns:      patterns,
-				FromOffset:    config.GetInt64("from-offset"),
-				FromTimestamp: timestamp,
-				Watch:         config.GetBool("watch"),
+				Patterns:       patterns,
+				FromOffset:     config.GetInt64("from-offset"),
+				MaxRecordCount: config.GetInt64("message-count"),
+				FromTimestamp:  timestamp,
+				Watch:          config.GetBool("watch"),
 			})
 			if err != nil {
 				l.Fatal("failed to start stream", zap.Error(err))
@@ -100,6 +101,7 @@ func Messages(ctx context.Context, config *viper.Viper) *cobra.Command {
 	stream.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
 	stream.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
 	stream.Flags().BoolP("watch", "w", false, "Watch for new records")
+	stream.Flags().Int64P("message-count", "n", 0, "Close stream after receving the provided number of messages.")
 	cmd.AddCommand(stream)
 
 	backupCommand := &cobra.Command{

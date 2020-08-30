@@ -19,6 +19,9 @@ type OffsetIterator interface {
 func FromOffset(o int64) consumerOpts {
 	return func(c *ConsumerOpts) { c.FromOffset = o }
 }
+func WithMaxRecordCount(o int64) consumerOpts {
+	return func(c *ConsumerOpts) { c.MaxRecordCount = o }
+}
 func WithMaxBatchSize(v int) consumerOpts {
 	return func(c *ConsumerOpts) { c.MaxBatchSize = v }
 }
@@ -57,6 +60,7 @@ func NewConsumer(opts ...consumerOpts) Consumer {
 		MaxBatchMemorySizeInBytes: 20000000,
 		EOFBehaviour:              EOFBehaviourPoll,
 		FromOffset:                0,
+		MaxRecordCount:            -1,
 	}
 	for _, opt := range opts {
 		opt(&config)

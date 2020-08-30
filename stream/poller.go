@@ -22,6 +22,7 @@ type ConsumerOpts struct {
 	Name                      string
 	MaxBatchSize              int
 	MaxBatchMemorySizeInBytes int
+	MaxRecordCount            int64
 	FromOffset                int64
 	EOFBehaviour              eofBehaviour
 	OffsetProvider            OffsetIterator
@@ -38,6 +39,7 @@ type poller struct {
 	minBatchSize              int
 	maxBatchMemorySizeInBytes int
 	currentMemorySizeInBytes  int
+	recordCountdown           int64
 	current                   Batch
 	ch                        chan Batch
 	err                       error
@@ -59,6 +61,7 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 		ch:                        make(chan Batch),
 		maxBatchSize:              opts.MaxBatchSize,
 		maxBatchMemorySizeInBytes: opts.MaxBatchMemorySizeInBytes,
+		recordCountdown:           opts.MaxRecordCount,
 		minBatchSize:              10,
 		current: Batch{
 			FirstOffset: uint64(offset),
@@ -141,6 +144,12 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 				return
 			}
 		}
+		if s.recordCountdown == 0 {
+			if err := s.waitFlush(ctx); err != nil {
+				s.err = err
+			}
+			return
+		}
 		entry, err := decoder.Decode()
 		if err == nil {
 			if s.currentMemorySizeInBytes+len(entry.Payload()) > s.maxBatchMemorySizeInBytes {
@@ -151,6 +160,9 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			}
 			s.current.Records = append(s.current.Records, entry.Payload())
 			s.currentMemorySizeInBytes += len(entry.Payload())
+			if s.recordCountdown > 0 {
+				s.recordCountdown--
+			}
 			s.current.LastTimestamp = entry.Timestamp()
 		}
 		if len(s.current.Records) >= s.maxBatchSize {

@@ -17,6 +17,7 @@ message GetRecordsRequest {
   int64 FromTimestamp = 2;
   repeated bytes Patterns = 3;
   bool Watch = 4;
+  int64 MaxRecordCount = 5;
 }
 message GetRecordsResponse { repeated Record Records = 1; }
 message LoadResponse {
