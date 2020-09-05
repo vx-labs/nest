@@ -76,6 +76,45 @@ func main() {
 	members.Flags().StringP("node", "n", "", "Cluster node to request")
 	members.MarkFlagRequired("node")
 	raft.AddCommand(members)
+
+	topology := &cobra.Command{
+		Use: "topology",
+		Run: func(cmd *cobra.Command, _ []string) {
+			conn, l := mustDial(ctx, cmd, config)
+			out, err := cluster.NewMultiRaftClient(conn).GetTopology(ctx, &cluster.GetTopologyRequest{
+				ClusterID: config.GetString("node"),
+			})
+			if err != nil {
+				l.Fatal("failed to get raft topology", zap.Error(err))
+			}
+			table := getTable([]string{"ID", "Leader", "Address", "Healthchecks", "Suffrage", "Progress"}, cmd.OutOrStdout())
+			for _, member := range out.GetMembers() {
+				healthString := "passing"
+				suffrageString := "unknown"
+				if !member.IsAlive {
+					healthString = "error"
+				}
+				if member.IsVoter {
+					suffrageString = "voter"
+				} else {
+					suffrageString = "learner"
+				}
+				table.Append([]string{
+					fmt.Sprintf("%x", member.GetID()),
+					fmt.Sprintf("%v", member.GetIsLeader()),
+					member.GetAddress(),
+					healthString,
+					suffrageString,
+					fmt.Sprintf("%d/%d", member.GetApplied(), out.Committed),
+				})
+			}
+			table.Render()
+		},
+	}
+	topology.Flags().StringP("node", "n", "", "Cluster node to request")
+	topology.MarkFlagRequired("node")
+	raft.AddCommand(topology)
+
 	removeMember := &cobra.Command{
 		Use: "remove-member",
 		Run: func(cmd *cobra.Command, args []string) {

@@ -90,20 +90,25 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 
 	stateMachine := fsm.NewFSM(id, recorder, commandsCh)
 
-	raftConfig.AppliedIndex = recorder.CurrentStateOffset()
+	bootOffset := recorder.CurrentStateOffset()
 	raftConfig.GetStateSnapshot = recorder.Snapshot
-	raftConfig.SnapshotNotifier = recorder.SyncToIndex
 	raftConfig.CommitApplier = func(ctx context.Context, event raft.Commit) error {
+		if event.Index <= bootOffset {
+			return nil
+		}
 		return stateMachine.Apply(event.Index, event.Payload)
 	}
 	var remoteCaller func(id uint64, f func(*grpc.ClientConn) error) error
 	raftConfig.SnapshotApplier = func(ctx context.Context, index uint64, snapshotter *snap.Snapshotter) error {
+		if index <= bootOffset {
+			return nil
+		}
+		logger.Debug("starting snapshot restore")
 		snapshot, err := snapshotter.Load()
 		if err != nil {
 			logger.Error("failed to load snapshot", zap.Error(err))
 			return err
 		}
-		logger.Debug("starting snapshot restore")
 		err = recorder.Restore(ctx, snapshot.Data, remoteCaller)
 		if err != nil {
 			logger.Error("failed to restore snapshot", zap.Error(err))
@@ -111,18 +116,18 @@ func newShard(id uint64, stream string, shardID uint64, datadir string, clusterM
 		return err
 	}
 	node := clusterMultiNode.Node(fmt.Sprintf("%s-%d", stream, shardID), raftConfig)
-	nodeIndex := node.Index()
-	if false && nodeIndex < raftConfig.AppliedIndex {
-		logger.Fatal("raft index is behind log index", zap.Error(err), zap.Uint64("log_index", raftConfig.AppliedIndex), zap.Uint64("raft_index", nodeIndex))
-		err := recorder.Truncate()
-		if err != nil {
-			logger.Fatal("raft index is behind log index, and truncating failed", zap.Error(err))
-		} else {
-			logger.Warn("raft index is behind log index, truncated log")
-			node.Reset()
-			raftConfig.AppliedIndex = 0
-		}
-	}
+	// nodeIndex := node.Index()
+	// if false && nodeIndex < raftConfig.AppliedIndex {
+	// 	logger.Fatal("raft index is behind log index", zap.Error(err), zap.Uint64("log_index", raftConfig.AppliedIndex), zap.Uint64("raft_index", nodeIndex))
+	// 	err := recorder.Truncate()
+	// 	if err != nil {
+	// 		logger.Fatal("raft index is behind log index, and truncating failed", zap.Error(err))
+	// 	} else {
+	// 		logger.Warn("raft index is behind log index, truncated log")
+	// 		panic("index late")
+	// 		raftConfig.AppliedIndex = 0
+	// 	}
+	// }
 	remoteCaller = node.Call
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = StoreLogger(ctx, logger)

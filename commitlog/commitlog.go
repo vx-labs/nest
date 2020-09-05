@@ -1,10 +1,13 @@
 package commitlog
 
 import (
+	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -34,8 +37,26 @@ type CommitLog interface {
 	TruncateAfter(offset uint64) error
 }
 
+func logFiles(datadir string) []uint64 {
+	matches, err := filepath.Glob(fmt.Sprintf("%s/*.log", datadir))
+	if err != nil {
+		return nil
+	}
+	out := make([]uint64, 0)
+	for idx := range matches {
+		offsetStr := strings.TrimSuffix(filepath.Base(matches[idx]), ".log")
+		offset, err := strconv.ParseUint(offsetStr, 10, 64)
+		if err == nil {
+			out = append(out, offset)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
 func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
-	if fileExists(path.Join(datadir, "0.log")) {
+	files := logFiles(datadir)
+	if len(files) > 0 {
 		return open(datadir, segmentMaxRecordCount)
 	}
 	err := os.MkdirAll(datadir, 0750)
@@ -58,7 +79,8 @@ func open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
-	var offset uint64 = 0
+	files := logFiles(datadir)
+	var offset uint64 = files[0]
 	for {
 		segment, err := openSegment(datadir, offset, segmentMaxRecordCount, true)
 		if err != nil {
