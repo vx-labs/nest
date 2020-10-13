@@ -6,7 +6,7 @@ import (
 	"io"
 	"path"
 
-	"github.com/vx-labs/nest/commitlog"
+	"github.com/vx-labs/commitlog"
 	"github.com/vx-labs/nest/nest/fsm"
 	"github.com/vx-labs/wasp/async"
 	"github.com/vx-labs/wasp/cluster"

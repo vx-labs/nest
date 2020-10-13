@@ -3,8 +3,8 @@ package nest
 import (
 	"context"
 
+	"github.com/vx-labs/commitlog/stream"
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/stream"
 	"github.com/vx-labs/wasp/wasp/audit"
 	"github.com/vx-labs/wasp/wasp/taps"
 	"google.golang.org/grpc"

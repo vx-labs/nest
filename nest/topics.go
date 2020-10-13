@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/stream"
+	"github.com/vx-labs/commitlog/stream"
 	"github.com/vx-labs/wasp/topics"
 )
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/stream"
+	"github.com/vx-labs/commitlog/stream"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

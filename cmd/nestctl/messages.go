@@ -16,7 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/vx-labs/nest/commitlog"
+	"github.com/vx-labs/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/nest/stream"
+	"github.com/vx-labs/commitlog/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

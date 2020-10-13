@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tysontate/gommap"
-	"github.com/vx-labs/nest/commitlog"
+	"github.com/vx-labs/commitlog"
 	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -180,7 +180,6 @@ func (s *recorder) Append(stateOffset uint64, timestamps []uint64, payloads [][]
 
 func (s *recorder) Consume(f func(r io.ReadSeeker) error) error {
 	r := s.log.Reader()
-	defer r.Close()
 	return f(r)
 }
 func (s *recorder) Load(source io.Reader) error {
@@ -232,12 +231,11 @@ func (s *recorder) restoreFromFile(ctx context.Context, snapshotDescription Snap
 
 func (s *recorder) Dump(sink io.Writer, fromOffset uint64) error {
 	r := s.log.Reader()
-	defer r.Close()
 	_, err := r.Seek(int64(fromOffset), io.SeekStart)
 	if err != nil {
 		return err
 	}
-	_, err = r.WriteTo(sink)
+	_, err = io.Copy(sink, r)
 	return err
 }
 
