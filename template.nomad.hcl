@@ -12,6 +12,10 @@ job "${deployment_name}" {
   }
 
   group "nest" {
+    constraint {
+      operator  = "distinct_hosts"
+      value     = "true"
+    }
     vault {
       policies      = ["nomad-tls-storer"]
       change_mode   = "signal"
