@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -56,55 +54,55 @@ func Topics(ctx context.Context, config *viper.Viper) *cobra.Command {
 	list.Flags().String("format", topicMetadataTemplate, "Format each record using Golang template format.")
 	cmd.AddCommand(list)
 
-	get := (&cobra.Command{
-		Use: "get",
-		Run: func(cmd *cobra.Command, args []string) {
-			conn, l := mustDial(ctx, cmd, config)
-			patterns := make([][]byte, len(args))
-			for idx := range patterns {
-				patterns[idx] = []byte(args[idx])
-			}
-			if len(args) == 0 {
-				patterns = append(patterns, []byte("#"))
-			}
-			timestamp := config.GetInt64("from-timestamp")
-			since := config.GetDuration("since")
-			if since > 0 {
-				timestamp = time.Now().Add(-since).UnixNano()
-			}
-			for _, pattern := range patterns {
-				stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
-					Pattern:       pattern,
-					FromOffset:    config.GetInt64("from-offset"),
-					FromTimestamp: timestamp,
-					Watch:         config.GetBool("watch"),
-				})
-				if err != nil {
-					l.Fatal("failed to start stream", zap.Error(err))
-				}
-				tpl := ParseTemplate(config.GetString("format"))
+	// get := (&cobra.Command{
+	// 	Use: "get",
+	// 	Run: func(cmd *cobra.Command, args []string) {
+	// 		conn, l := mustDial(ctx, cmd, config)
+	// 		patterns := make([][]byte, len(args))
+	// 		for idx := range patterns {
+	// 			patterns[idx] = []byte(args[idx])
+	// 		}
+	// 		if len(args) == 0 {
+	// 			patterns = append(patterns, []byte("#"))
+	// 		}
+	// 		timestamp := config.GetInt64("from-timestamp")
+	// 		since := config.GetDuration("since")
+	// 		if since > 0 {
+	// 			timestamp = time.Now().Add(-since).UnixNano()
+	// 		}
+	// 		for _, pattern := range patterns {
+	// 			stream, err := api.NewMessagesClient(conn).GetTopics(ctx, &api.GetTopicsRequest{
+	// 				Pattern:       pattern,
+	// 				FromOffset:    config.GetInt64("from-offset"),
+	// 				FromTimestamp: timestamp,
+	// 				Watch:         config.GetBool("watch"),
+	// 			})
+	// 			if err != nil {
+	// 				l.Fatal("failed to start stream", zap.Error(err))
+	// 			}
+	// 			tpl := ParseTemplate(config.GetString("format"))
 
-				for {
-					msg, err := stream.Recv()
-					if err != nil {
-						if err == io.EOF {
-							return
-						}
-						l.Fatal("failed to stream", zap.Error(err))
-					}
-					for _, record := range msg.Records {
-						tpl.Execute(cmd.OutOrStdout(), record)
-					}
-				}
-			}
-		},
-	})
-	get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
-	get.Flags().BoolP("watch", "w", false, "Watch for new records")
-	get.Flags().Int64P("from-timestamp", "", 0, "Fetch records written after the given timestamp.")
-	get.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
-	get.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
-	cmd.AddCommand(get)
+	// 			for {
+	// 				msg, err := stream.Recv()
+	// 				if err != nil {
+	// 					if err == io.EOF {
+	// 						return
+	// 					}
+	// 					l.Fatal("failed to stream", zap.Error(err))
+	// 				}
+	// 				for _, record := range msg.Records {
+	// 					tpl.Execute(cmd.OutOrStdout(), record)
+	// 				}
+	// 			}
+	// 		}
+	// 	},
+	// })
+	// get.Flags().String("format", recordTemplate, "Format each record using Golang template format.")
+	// get.Flags().BoolP("watch", "w", false, "Watch for new records")
+	// get.Flags().Int64P("from-timestamp", "", 0, "Fetch records written after the given timestamp.")
+	// get.Flags().Int64P("from-offset", "", 0, "Fetch records written after the given offset.")
+	// get.Flags().Duration("since", 0, "Fetch records written since the given time expression.")
+	// cmd.AddCommand(get)
 
 	return cmd
 }

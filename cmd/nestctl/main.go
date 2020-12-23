@@ -13,7 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	cluster "github.com/vx-labs/wasp/cluster/clusterpb"
+	cluster "github.com/vx-labs/cluster/clusterpb"
 	"go.uber.org/zap"
 )
 
@@ -47,47 +47,20 @@ func main() {
 			}
 		},
 	}
-	raft := &cobra.Command{
-		Use: "raft",
+	clusterCommand := &cobra.Command{
+		Use: "cluster",
 	}
-	members := &cobra.Command{
-		Use: "members",
-		Run: func(cmd *cobra.Command, _ []string) {
-			conn, l := mustDial(ctx, cmd, config)
-			out, err := cluster.NewMultiRaftClient(conn).GetMembers(ctx, &cluster.GetMembersRequest{
-				ClusterID: config.GetString("node"),
-			})
-			if err != nil {
-				l.Fatal("failed to list raft members", zap.Error(err))
-			}
-			table := getTable([]string{"ID", "Leader", "Address", "Health"}, cmd.OutOrStdout())
-			for _, member := range out.GetMembers() {
-				healthString := "healthy"
-				if !member.IsAlive {
-					healthString = "unhealthy"
-				}
-				table.Append([]string{
-					fmt.Sprintf("%x", member.GetID()), fmt.Sprintf("%v", member.GetIsLeader()), member.GetAddress(), healthString,
-				})
-			}
-			table.Render()
-		},
-	}
-	members.Flags().StringP("node", "n", "", "Cluster node to request")
-	members.MarkFlagRequired("node")
-	raft.AddCommand(members)
-
-	topology := &cobra.Command{
-		Use: "topology",
+	list := &cobra.Command{
+		Use: "ls",
 		Run: func(cmd *cobra.Command, _ []string) {
 			conn, l := mustDial(ctx, cmd, config)
 			out, err := cluster.NewMultiRaftClient(conn).GetTopology(ctx, &cluster.GetTopologyRequest{
-				ClusterID: config.GetString("node"),
+				ClusterID: "nest",
 			})
 			if err != nil {
 				l.Fatal("failed to get raft topology", zap.Error(err))
 			}
-			table := getTable([]string{"ID", "Leader", "Address", "Healthchecks", "Suffrage", "Progress"}, cmd.OutOrStdout())
+			table := getTable([]string{"ID", "Leader", "Address", "Healthchecks", "Suffrage", "Progress", "Latency"}, cmd.OutOrStdout())
 			for _, member := range out.GetMembers() {
 				healthString := "passing"
 				suffrageString := "unknown"
@@ -106,14 +79,13 @@ func main() {
 					healthString,
 					suffrageString,
 					fmt.Sprintf("%d/%d", member.GetApplied(), out.Committed),
+					fmt.Sprintf("%dms", member.LatencyMs),
 				})
 			}
 			table.Render()
 		},
 	}
-	topology.Flags().StringP("node", "n", "", "Cluster node to request")
-	topology.MarkFlagRequired("node")
-	raft.AddCommand(topology)
+	clusterCommand.AddCommand(list)
 
 	removeMember := &cobra.Command{
 		Use: "remove-member",
@@ -124,7 +96,7 @@ func main() {
 				l.Fatal("invalid node id specified", zap.Error(err))
 			}
 			_, err = cluster.NewMultiRaftClient(conn).RemoveMember(ctx, &cluster.RemoveMultiRaftMemberRequest{
-				ClusterID: config.GetString("node"),
+				ClusterID: "nest",
 				ID:        id,
 			})
 			if err != nil {
@@ -132,16 +104,14 @@ func main() {
 			}
 		},
 	}
-	removeMember.Flags().StringP("node", "n", "", "Cluster node to request")
-	removeMember.MarkFlagRequired("node")
 	removeMember.Args = cobra.ExactArgs(1)
-	raft.AddCommand(removeMember)
+	clusterCommand.AddCommand(removeMember)
 
 	hostname, _ := os.Hostname()
 
-	rootCmd.AddCommand(raft)
+	rootCmd.AddCommand(clusterCommand)
 	rootCmd.AddCommand(Streams(ctx, config))
-	rootCmd.AddCommand(Messages(ctx, config))
+	//rootCmd.AddCommand(Messages(ctx, config))
 	rootCmd.AddCommand(Events(ctx, config))
 	rootCmd.AddCommand(Topics(ctx, config))
 	rootCmd.PersistentFlags().BoolP("insecure", "k", false, "Disable GRPC client-side TLS validation.")

@@ -3,8 +3,8 @@ package nest
 import (
 	"context"
 
-	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/commitlog/stream"
+	"github.com/vx-labs/nest/nest/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,23 +20,13 @@ type eventServer struct {
 	state EventsLog
 }
 
-func (s *eventServer) PutEvent(ctx context.Context, in *api.PutEventRequest) (*api.PutEventResponse, error) {
-	return &api.PutEventResponse{}, s.state.PutEvents(ctx, []*api.Event{
-		{Timestamp: in.Timestamp, Kind: in.Kind, Service: in.Service, Tenant: in.Tenant, Attributes: in.Attributes},
-	})
-}
 func (s *eventServer) GetEvents(in *api.GetEventRequest, client api.Events_GetEventsServer) error {
 	if in.Tenant == "" {
 		return status.Error(codes.InvalidArgument, "missing Tenant in request")
 	}
 	var consumer stream.Consumer
 	offset := uint64(in.FromOffset)
-	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
-		if timestampOffset > offset {
-			offset = timestampOffset
-		}
-	}
+
 	if in.Watch {
 		consumer = stream.NewConsumer(
 			stream.FromOffset(int64(offset)),

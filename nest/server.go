@@ -2,9 +2,10 @@ package nest
 
 import (
 	"context"
+	"sync"
 
-	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/commitlog/stream"
+	"github.com/vx-labs/nest/nest/api"
 	"google.golang.org/grpc"
 )
 
@@ -22,44 +23,6 @@ type server struct {
 	state MessageLog
 }
 
-func (s *server) PutRecords(ctx context.Context, in *api.PutRecordsRequest) (*api.PutRecordsResponse, error) {
-	return &api.PutRecordsResponse{}, s.state.PutRecords(ctx, in.Records)
-}
-func (s *server) GetRecords(in *api.GetRecordsRequest, client api.Messages_GetRecordsServer) error {
-	var consumer stream.Consumer
-	offset := uint64(in.FromOffset)
-	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
-		if timestampOffset > offset {
-			offset = timestampOffset
-		}
-	}
-	if in.MaxRecordCount == 0 {
-		in.MaxRecordCount = -1
-	}
-
-	if in.Watch {
-		consumer = stream.NewConsumer(
-			stream.WithMaxRecordCount(in.MaxRecordCount),
-			stream.FromOffset(int64(offset)),
-			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-		)
-	} else {
-		consumer = stream.NewConsumer(
-			stream.WithMaxRecordCount(in.MaxRecordCount),
-			stream.FromOffset(int64(offset)),
-			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-		)
-	}
-	return s.state.Consume(client.Context(), consumer,
-		RecordMatcher(in.Patterns,
-			func(_ context.Context, _ uint64, batch []*api.Record) error {
-				return client.Send(&api.GetRecordsResponse{Records: batch})
-			},
-		),
-	)
-}
-
 func (s *server) Serve(grpcServer *grpc.Server) {
 	api.RegisterMessagesServer(grpcServer, s)
 }
@@ -70,30 +33,42 @@ func (s *server) ListTopics(ctx context.Context, in *api.ListTopicsRequest) (*ap
 
 func (s *server) GetTopics(in *api.GetTopicsRequest, client api.Messages_GetTopicsServer) error {
 	var consumer stream.Consumer
-	offset := uint64(in.FromOffset)
-	if in.FromTimestamp > 0 {
-		timestampOffset := s.state.LookupTimestamp(uint64(in.FromTimestamp))
-		if timestampOffset > offset {
-			offset = timestampOffset
-		}
-	}
+	ctx, cancel := context.WithCancel(client.Context())
+	defer cancel()
 
-	if in.Watch {
-		consumer = stream.NewConsumer(
-			stream.FromOffset(int64(offset)),
-			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
-		)
-	} else {
-		consumer = stream.NewConsumer(
-			stream.FromOffset(int64(offset)),
-			stream.WithEOFBehaviour(stream.EOFBehaviourExit),
-			stream.WithOffsetIterator(s.state.TopicsIterator(in.Pattern)),
-		)
+	offset := uint64(in.FromOffset)
+	shards := s.state.ListShards()
+	wg := sync.WaitGroup{}
+	for idx := range shards {
+		shard := shards[idx]
+
+		if in.Watch {
+			consumer = stream.NewConsumer(
+				stream.FromOffset(int64(offset)),
+				stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+				stream.WithOffsetIterator(s.state.TopicsIterator(shard, in.Pattern)),
+			)
+		} else {
+			consumer = stream.NewConsumer(
+				stream.FromOffset(int64(offset)),
+				stream.WithEOFBehaviour(stream.EOFBehaviourExit),
+				stream.WithOffsetIterator(s.state.TopicsIterator(shard, in.Pattern)),
+			)
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := s.state.Consume(ctx, 0, consumer,
+				func(_ context.Context, _ uint64, batch []*api.Record) error {
+					return client.Send(&api.GetTopicsResponse{Records: batch})
+				},
+			)
+			if err != nil {
+				cancel()
+				return
+			}
+		}()
 	}
-	return s.state.Consume(client.Context(), consumer,
-		func(_ context.Context, _ uint64, batch []*api.Record) error {
-			return client.Send(&api.GetTopicsResponse{Records: batch})
-		},
-	)
+	wg.Wait()
+	return nil
 }

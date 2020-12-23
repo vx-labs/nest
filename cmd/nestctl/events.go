@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,41 +19,6 @@ func Events(ctx context.Context, config *viper.Viper) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "events",
 	}
-	put := &cobra.Command{
-		Use: "put",
-		Run: func(cmd *cobra.Command, _ []string) {
-			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			defer cancel()
-			conn, l := mustDial(ctx, cmd, config)
-			userInput := config.GetStringSlice("attribute")
-			attributes := make([]*api.EventAttribute, len(userInput))
-			for idx := range attributes {
-				tokens := strings.Split(userInput[idx], "=")
-				if len(tokens) != 2 {
-					continue
-				}
-				attributes[idx] = &api.EventAttribute{
-					Key:   tokens[0],
-					Value: tokens[1],
-				}
-			}
-			_, err := api.NewEventsClient(conn).PutEvent(ctx, &api.PutEventRequest{
-				Timestamp:  time.Now().UnixNano(),
-				Tenant:     config.GetString("tenant"),
-				Kind:       config.GetString("kind"),
-				Service:    config.GetString("service"),
-				Attributes: attributes,
-			})
-			if err != nil {
-				l.Fatal("failed to put record", zap.Error(err))
-			}
-		},
-	}
-	put.Flags().StringP("kind", "", "test", "Event's kind")
-	put.Flags().StringP("service", "s", "test", "Event's service")
-	put.Flags().StringP("tenant", "t", "test", "Event's tenant")
-	put.Flags().StringSliceP("attribute", "a", nil, "Event's attribute")
-	cmd.AddCommand(put)
 
 	get := (&cobra.Command{
 		Use: "get",

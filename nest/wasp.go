@@ -2,11 +2,14 @@ package nest
 
 import (
 	"context"
+	"io"
+	"log"
+	"sync"
 
 	"github.com/vx-labs/commitlog/stream"
 	"github.com/vx-labs/nest/nest/api"
-	"github.com/vx-labs/wasp/wasp/audit"
-	"github.com/vx-labs/wasp/wasp/taps"
+	"github.com/vx-labs/wasp/v4/wasp/audit"
+	"github.com/vx-labs/wasp/v4/wasp/taps"
 	"google.golang.org/grpc"
 )
 
@@ -49,12 +52,16 @@ func (w *WaspAuditRecorder) Serve(server *grpc.Server) {
 }
 
 func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client audit.WaspAuditRecorder_GetWaspEventsServer) error {
-	offset := w.events.LookupTimestamp(uint64(in.FromTimestamp))
-	consumer := stream.NewConsumer(
-		stream.FromOffset(int64(offset)),
-		stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
-	)
-	return w.events.Consume(client.Context(), consumer, func(_ context.Context, _ uint64, events []*api.Event) error {
+
+	shards, err := w.events.Shards()
+	if err != nil {
+		log.Printf("no shard found for stream: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(client.Context())
+	defer cancel()
+	wg := sync.WaitGroup{}
+	processor := func(_ context.Context, _ uint64, events []*api.Event) error {
 		out := make([]*audit.WaspAuditEvent, len(events))
 		for idx := range events {
 			event := events[idx]
@@ -68,7 +75,33 @@ func (w *WaspAuditRecorder) GetWaspEvents(in *audit.GetWaspEventsRequest, client
 			out[idx] = &audit.WaspAuditEvent{Timestamp: event.Timestamp, Tenant: event.Tenant, Service: event.Service, Kind: event.Kind, Attributes: attributes}
 		}
 		return client.Send(&audit.GetWaspEventsResponse{Events: out})
-	})
+	}
+
+	for idx := range shards {
+		consumer := stream.NewConsumer(
+			stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+		)
+
+		shard := shards[idx]
+		reader, err := w.events.Shard(shard)
+		if err != nil {
+			return err
+		}
+		if in.FromTimestamp > 0 {
+			reader.Seek(int64(w.events.LookupTimestamp(shard, uint64(in.FromTimestamp))), io.SeekStart)
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := consumer.Consume(ctx, reader, EventDecoder(processor))
+			if err != nil {
+				cancel()
+				return
+			}
+		}()
+	}
+	wg.Wait()
+	return nil
 }
 func (w *WaspAuditRecorder) PutWaspEvents(ctx context.Context, in *audit.PutWaspEventRequest) (*audit.PutWaspWaspEventsResponse, error) {
 	records := make([]*api.Event, len(in.Events))

@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"io"
+	"log"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/commitlog/stream"
+	"github.com/vx-labs/nest/nest/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -25,11 +25,11 @@ type RecordProcessor func(context.Context, uint64, []*api.Record) error
 
 type MessageLog interface {
 	StartConsumers(ctx context.Context)
-	LookupTimestamp(ts uint64) uint64
+	ListShards() []uint64
 	PutRecords(ctx context.Context, b []*api.Record) error
 	ListTopics(pattern []byte) []*api.TopicMetadata
-	TopicsIterator(pattern []byte) stream.OffsetIterator
-	Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error
+	TopicsIterator(shard uint64, pattern []byte) stream.OffsetIterator
+	Consume(ctx context.Context, shard uint64, consumer stream.Consumer, processor RecordProcessor) error
 }
 
 type Snapshot struct {
@@ -39,55 +39,100 @@ type Snapshot struct {
 }
 
 type messageLog struct {
-	shard  Shard
-	logger *zap.Logger
-	topics *topicAggregate
+	streamID string
+	shard    ShardsController
+	logger   *zap.Logger
+	topics   map[uint64]*topicAggregate
 }
 
-func NewMessageLog(ctx context.Context, shard Shard, logger *zap.Logger) (MessageLog, error) {
+func NewMessageLog(ctx context.Context, shard ShardsController, streamID string, logger *zap.Logger) (MessageLog, error) {
 	s := &messageLog{
-		shard:  shard,
-		logger: logger,
-		topics: &topicAggregate{topics: NewTopicState()},
+		streamID: streamID,
+		shard:    shard,
+		logger:   logger,
+		topics:   make(map[uint64]*topicAggregate),
 	}
-
-	return s, nil
-}
-
-func (s *messageLog) StartConsumers(ctx context.Context) {
 	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
-			consumer := stream.NewConsumer(
-				stream.WithName("topics_indexer"),
-				stream.WithPerformanceLogging(s.shard, s.logger.With(
-					zap.String("stream_name", "messages"),
-					zap.Uint64("shard_id", 0),
-				)),
-			)
-			err := s.Consume(ctx, consumer, s.topics.Processor())
-			if err != nil && err != context.Canceled {
-				s.logger.Error("topics indexer failed to run", zap.Error(err))
-				<-time.After(1 * time.Second)
+			_, err := s.shard.Stream(s.streamID)
+			if err == nil {
+				s.StartConsumers(ctx)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
 			}
 		}
 	}()
+	return s, nil
 }
-func (s *messageLog) LookupTimestamp(ts uint64) uint64 {
-	return s.shard.LookupTimestamp(ts)
+
+func (s *messageLog) ListShards() []uint64 {
+	stream, err := s.shard.Stream(s.streamID)
+	if err != nil {
+		return nil
+	}
+	v, err := s.shard.ListShards(stream)
+	if err != nil {
+		return nil
+	}
+	return v
 }
-func (s *messageLog) Dump(sink io.Writer, fromOffset uint64) error {
-	return s.shard.Dump(sink, fromOffset)
+func (s *messageLog) StartConsumers(ctx context.Context) {
+	streamID, err := s.shard.Stream(s.streamID)
+	if err != nil {
+		return
+	}
+	shards, err := s.shard.ListShards(streamID)
+	if err != nil {
+		log.Printf("no shard found for stream: %v", err)
+	}
+	for idx := range shards {
+		shard := shards[idx]
+		s.topics[shard] = &topicAggregate{topics: NewTopicState()}
+		go func() {
+			for {
+				consumer := stream.NewConsumer(
+					stream.WithName("topics_indexer"),
+					stream.FromOffset(0),
+					stream.WithMaxBatchSize(100),
+					stream.WithEOFBehaviour(stream.EOFBehaviourPoll),
+				)
+				err := s.Consume(ctx, shard, consumer, s.topics[shard].Processor())
+				if err != nil {
+					if err != context.Canceled {
+						s.logger.Error("topics indexer failed to run", zap.Error(err))
+						<-time.After(1 * time.Second)
+					} else {
+						return
+					}
+				}
+			}
+		}()
+	}
 }
+
 func (s *messageLog) PutRecords(ctx context.Context, b []*api.Record) error {
-	payloads := make([][]byte, len(b))
-	var err error
-	for idx, record := range b {
-		payloads[idx], err = proto.Marshal(record)
+	streamID, err := s.shard.Stream(s.streamID)
+	if err != nil {
+		return err
+	}
+	for idx := range b {
+		record := b[idx]
+		payload, err := proto.Marshal(record)
+		if err != nil {
+			return err
+		}
+		err = s.shard.Write(ctx, streamID, string(record.Topic), payload)
 		if err != nil {
 			return err
 		}
 	}
-	return s.shard.PutRecords(ctx, payloads)
+	return nil
 }
 
 func cut(t []byte) ([]byte, string) {
@@ -119,24 +164,32 @@ func (s *messageLog) ListTopics(pattern []byte) []*api.TopicMetadata {
 	if len(pattern) == 0 {
 		pattern = []byte("#")
 	}
-	topics := s.topics.topics.Match(pattern)
-	out := make([]*api.TopicMetadata, len(topics))
-	for idx := range out {
-		out[idx] = &api.TopicMetadata{
-			Name:               topics[idx].Name,
-			MessageCount:       uint64(len(topics[idx].Messages)),
-			LastRecord:         topics[idx].LastRecord,
-			SizeInBytes:        topics[idx].SizeInBytes,
-			GuessedContentType: topics[idx].GuessedContentType,
+	out := make([]*api.TopicMetadata, 0)
+	for _, aggreg := range s.topics {
+		topics := aggreg.topics.Match(pattern)
+		for idx := range topics {
+			out = append(out, &api.TopicMetadata{
+				Name:               topics[idx].Name,
+				MessageCount:       uint64(len(topics[idx].Messages)),
+				LastRecord:         topics[idx].LastRecord,
+				SizeInBytes:        topics[idx].SizeInBytes,
+				GuessedContentType: topics[idx].GuessedContentType,
+			})
 		}
 	}
 	return out
 }
 
-func (s *messageLog) Consume(ctx context.Context, consumer stream.Consumer, processor RecordProcessor) error {
-	return s.shard.Consume(func(r io.ReadSeeker) error {
-		return consumer.Consume(ctx, r, RecordDecoder(processor))
-	})
+func (s *messageLog) Consume(ctx context.Context, shard uint64, consumer stream.Consumer, processor RecordProcessor) error {
+	stream, err := s.shard.Stream(s.streamID)
+	if err != nil {
+		return err
+	}
+	r, err := s.shard.Reader(stream, shard)
+	if err != nil {
+		return err
+	}
+	return consumer.Consume(ctx, r, RecordDecoder(processor))
 }
 
 func RecordMatcher(patterns [][]byte, f RecordProcessor) RecordProcessor {
@@ -163,19 +216,26 @@ func RecordMatcher(patterns [][]byte, f RecordProcessor) RecordProcessor {
 // RecordDecoder returns a stream.Processor decoding api.Record and passing them to the provided callback function
 func RecordDecoder(processor func(context.Context, uint64, []*api.Record) error) stream.Processor {
 	return func(ctx context.Context, batch stream.Batch) error {
+		if len(batch.Records) == 0 {
+			return nil
+		}
 		records := make([]*api.Record, len(batch.Records))
 		for idx, buf := range batch.Records {
 			record := &api.Record{}
-			err := proto.Unmarshal(buf, record)
+			err := proto.Unmarshal(buf.Payload(), record)
 			if err != nil {
 				return err
 			}
 			records[idx] = record
 		}
-		return processor(ctx, batch.FirstOffset, records)
+		return processor(ctx, batch.Records[0].Offset(), records)
 	}
 }
 
-func (s *messageLog) TopicsIterator(pattern []byte) stream.OffsetIterator {
-	return s.topics.Iterator(pattern)
+func (s *messageLog) TopicsIterator(shard uint64, pattern []byte) stream.OffsetIterator {
+	topics, ok := s.topics[shard]
+	if !ok {
+		return nil
+	}
+	return topics.Iterator(pattern)
 }
