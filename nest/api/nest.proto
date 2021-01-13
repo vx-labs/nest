@@ -2,6 +2,143 @@ syntax = "proto3";
 
 package api;
 
+message Entry {
+  uint64 Offset = 1;
+  uint64 Timestamp = 2;
+  bytes Payload = 3;
+}
+
+message ShardReplica {
+  uint64 Peer = 1;
+  uint64 Committed = 2;
+  uint64 LatestRecord = 3;
+  int64 LastAdded = 4;
+  int64 LastDeleted = 5;
+}
+
+message PeerShardState { map<uint64, ShardReplica> Shards = 1; }
+
+message ShardReplicaState { map<uint64, PeerShardState> Peers = 1; }
+message Shard {
+  uint64 ID = 1;
+  string StreamID = 2;
+  uint64 Leader = 3;
+  repeated uint64 Replicas = 4;
+}
+
+message Stream {
+  string ID = 1;
+  string Name = 2;
+  repeated Shard Shards = 3;
+  int64 DesiredReplicaCount = 4;
+}
+
+message State { map<string, Stream> configurations = 1; }
+
+message GetClusterEntriesInput {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  uint64 FromOffset = 3;
+  uint64 FromTimestamp = 4;
+  uint64 MaxBatchSize = 5;
+  uint64 MaxTotalRecordsCount = 6;
+}
+
+message GetClusterEntriesOutput {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  repeated Entry Entries = 3;
+  uint64 DeltaMilisec = 4;
+}
+
+message SetClusterProgressOutput {}
+
+message CreateStreamInput {
+  string Name = 1;
+  int64 ShardCount = 2;
+  int64 DesiredReplicaCount = 3;
+};
+message CreateStreamOutput { string ID = 1; };
+message DeleteStreamInput { string ID = 1; };
+message DeleteStreamOutput { string ID = 1; };
+
+service NestCluster {
+  rpc GetClusterEntries(GetClusterEntriesInput)
+      returns (stream GetClusterEntriesOutput);
+}
+
+message ListStreamsInput {};
+message ListStreamsOutput {
+  repeated Stream Streams = 1;
+  ShardReplicaState ShardReplicaState = 2;
+};
+
+message PutEntryInput {
+  string StreamID = 1;
+  string ShardKey = 2;
+  bytes Payload = 3;
+}
+
+message PutEntryOutput {
+  uint64 Offset = 1;
+  int64 Timestamp = 2;
+}
+
+message GetEntriesInput {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  uint64 FromOffset = 3;
+  uint64 FromTimestamp = 4;
+  uint64 MaxBatchSize = 5;
+  uint64 MaxTotalRecordsCount = 6;
+  bool Watch = 7;
+}
+message GetEntriesOutput {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  repeated Entry Entries = 3;
+  uint64 DeltaMilisec = 4;
+}
+
+service Nest {
+  rpc CreateStream(CreateStreamInput) returns (CreateStreamOutput);
+  rpc ListStreams(ListStreamsInput) returns (ListStreamsOutput);
+  rpc PutEntry(PutEntryInput) returns (PutEntryOutput);
+  rpc GetEntries(GetEntriesInput) returns (stream GetEntriesOutput);
+}
+
+message StateTransitionSet { repeated StateTransition events = 1; }
+
+message StreamCreated {
+  string ID = 1;
+  string Name = 2;
+  int64 DesiredReplicaCount = 3;
+  repeated uint64 Shards = 4;
+}
+message ShardAssigned {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  uint64 Peer = 3;
+}
+message ShardUnassigned {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  uint64 Peer = 3;
+}
+message ShardLeaderElected {
+  string StreamID = 1;
+  uint64 ShardID = 2;
+  uint64 Peer = 3;
+}
+message StateTransition {
+  oneof Event {
+    StreamCreated StreamCreated = 1;
+    ShardAssigned ShardAssigned = 2;
+    ShardUnassigned ShardUnassigned = 3;
+    ShardLeaderElected ShardLeaderElected = 4;
+  }
+}
+
 message Record {
   int64 Timestamp = 1;
   bytes Topic = 2;
@@ -46,8 +183,6 @@ message GetTopicsRequest {
 message GetTopicsResponse { repeated Record Records = 1; }
 
 service Messages {
-  rpc PutRecords(PutRecordsRequest) returns (PutRecordsResponse) {}
-  rpc GetRecords(GetRecordsRequest) returns (stream GetRecordsResponse) {}
   rpc ListTopics(ListTopicsRequest) returns (ListTopicsResponse) {}
   rpc GetTopics(GetTopicsRequest) returns (stream GetTopicsResponse) {}
 }
@@ -107,15 +242,6 @@ message Event {
   string Kind = 4;
   repeated EventAttribute Attributes = 5;
 }
-message PutEventRequest {
-  int64 Timestamp = 1;
-  string Tenant = 2;
-  string Service = 3;
-  string Kind = 4;
-  repeated EventAttribute Attributes = 5;
-}
-
-message PutEventResponse {}
 message GetEventRequest {
   string Tenant = 1;
   int64 FromOffset = 2;
@@ -125,6 +251,5 @@ message GetEventRequest {
 message GetEventResponse { repeated Event Events = 1; }
 
 service Events {
-  rpc PutEvent(PutEventRequest) returns (PutEventResponse) {}
   rpc GetEvents(GetEventRequest) returns (stream GetEventResponse) {}
 }

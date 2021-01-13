@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/vx-labs/wasp/rpc"
+	"github.com/vx-labs/wasp/v4/rpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -18,16 +18,16 @@ func mustDial(ctx context.Context, cmd *cobra.Command, config *viper.Viper) (*gr
 	if err != nil {
 		l.Fatal("failed to create data directory", zap.Error(err))
 	}
+	if !cmd.Flag("rpc-tls-certificate-authority-file").Changed {
+		config.Set("rpc-tls-certificate-authority-file", caPath())
+	}
+	if !cmd.Flag("rpc-tls-certificate-file").Changed {
+		config.Set("rpc-tls-certificate-file", certPath())
+	}
+	if !cmd.Flag("rpc-tls-private-key-file").Changed {
+		config.Set("rpc-tls-private-key-file", privkeyPath())
+	}
 	if config.GetBool("use-vault") {
-		if !cmd.Flag("rpc-tls-certificate-authority-file").Changed {
-			config.Set("rpc-tls-certificate-authority-file", caPath())
-		}
-		if !cmd.Flag("rpc-tls-certificate-file").Changed {
-			config.Set("rpc-tls-certificate-file", certPath())
-		}
-		if !cmd.Flag("rpc-tls-private-key-file").Changed {
-			config.Set("rpc-tls-private-key-file", privkeyPath())
-		}
 		if areVaultTLSCredentialsExpired() {
 			l.Info("refreshing certificates from Vault")
 			err = saveVaultCertificate(config.GetString("vault-pki-path"), config.GetString("vault-pki-common-name"))

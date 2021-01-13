@@ -1,17 +1,51 @@
 ---
-name: build and publish
+name: build and publish docker container
 on:
-  - push
+  push:
+    branches:
+      - master
+    pull_request:
+      branches:
+        - master
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@master
-      - name: Build and push Docker container
-        uses: docker/build-push-action@v1
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
         with:
           username: "${{ secrets.DOCKER_USERNAME }}"
           password: "${{ secrets.DOCKER_PASSWORD }}"
-          repository: vxlabs/nest
-          tags: "latest,${{ github.sha }}"
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          build-args: |
+            BUILT_VERSION=${{ github.sha }}
+          tags: |
+            vxlabs/nest:latest
+            vxlabs/nest:${{ github.sha }}
+      - name: Run Snyk to check Docker image for vulnerabilities
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: vxlabs/nest:${{ github.sha }}
+          args: --file=Dockerfile
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: snyk.sarif

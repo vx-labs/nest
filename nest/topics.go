@@ -8,9 +8,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/commitlog/stream"
-	"github.com/vx-labs/wasp/topics"
+	"github.com/vx-labs/nest/nest/api"
+	"github.com/vx-labs/wasp/v4/topics"
 )
 
 type Topic struct {
@@ -59,7 +59,8 @@ func (t *topicsState) Match(pattern []byte) []Topic {
 }
 
 func (t *topicsState) Set(topic Topic) error {
-	return t.store.Insert(topic.Name, encodeTopic(topic))
+	_, err := t.store.Insert(topic.Name, encodeTopic(topic))
+	return err
 }
 
 type topicAggregate struct {

@@ -1,0 +1,38 @@
+# fly.toml file generated for vespiary on 2021-01-05T18:15:08+01:00
+
+app = "nest"
+
+kill_signal = "SIGINT"
+kill_timeout = 30
+
+[build]
+  builtin = "dockerfile"
+
+[env]
+  NEST_JOIN_NODE="nest.internal:2799"
+  NEST_HEALTH_PORT="2699"
+  NEST_RAFT_BOOTSTRAP_EXPECT="3"
+  NEST_INSECURE="true"
+
+[experimental]
+  private_network = true
+
+[[services]]
+  internal_port = 2899
+  protocol = "tcp"
+
+[[services]]
+  internal_port = 2799
+  protocol = "tcp"
+
+[[services]]
+  internal_port = 2699
+  protocol = "tcp"
+
+ [[services.http_checks]]
+    interval = 3000
+    method = "get"
+    path = "/health"
+    protocol = "http"
+    timeout = 2000
+    [services.http_checks.headers]

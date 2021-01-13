@@ -4,7 +4,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 
-	"github.com/vx-labs/wasp/rpc"
+	"github.com/vx-labs/wasp/v4/rpc"
 
 	"encoding/pem"
 	"log"
