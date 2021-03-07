@@ -58,7 +58,7 @@ func NewMessageLog(ctx context.Context, shard ShardsController, streamID string,
 		for {
 			_, err := s.shard.Stream(s.streamID)
 			if err == nil {
-				//s.StartConsumers(ctx)
+				s.StartConsumers(ctx)
 				return
 			}
 			select {
