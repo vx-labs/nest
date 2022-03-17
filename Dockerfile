@@ -10,7 +10,7 @@ ARG BUILT_VERSION="snapshot"
 RUN go build -buildmode=exe -ldflags="-s -w -X github.com/vx-labs/nest/cmd/nest/version.BuiltVersion=${BUILT_VERSION}" \
        -a -o /bin/nest ./cmd/nest
 
-FROM alpine as prod
+FROM alpine:3.15 as prod
 ENTRYPOINT ["/usr/bin/nest"]
 RUN apk -U add ca-certificates && \
     rm -rf /var/cache/apk/*
